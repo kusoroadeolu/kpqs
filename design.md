@@ -1,53 +1,10 @@
-## Hopper
-A structure similar in spirit to flat combining. 
-Incoming threads publish their requests to a stack 
-
-The tail of the "current" requests in a stack is identified as the request whose next request pointer
-points to null. There can only be one of this at any given time
-
-To choose the "owner" of the current requests in the stack,
-the thread whose request is the tail of the stack is identified as the 
-owner of the current requests in the stack
-
-When it's time to apply the requests, the owner detaches all requests
-from the head of the stack using an atomic get then set operation
-
-We use a simple treiber stack for this
-
-I want to make this structure pretty flexible as it'd be the main plumbing
-for basically all the `poll` methods in this priority queue lib
-
-
-My sketch
-```java
-abstract class HopperItem<T> {
-    HopperItem<T> next;
-    final HopperItem next() {} //uses a plain memory access as well
-    final void setNext(HopperItem next) {} //uses a plain memory access or stronger
-}
-
-```
-
-Then for the hopper
-
-```java
-class Hopper {
-    volatile HopperItem head;
-
-    public boolean push(HopperItem item) {} //pushes onto the stack, returns true if we're the combiner, else false
-    public Iterator<HopperItem> dump() {} //detaches the hopper from the head, and all it's nodes
-}
-```
-
-
-
-
 ---
 # K-Queue – An Unbounded Relaxed Priority Queue
 
-**Keywords:** `F` (Fixed Capacity), `U` (Unbounded Capacity)
 
 ---
+**Keywords:** `F` (Fixed Capacity), `U` (Unbounded Capacity)
+
 
 ## LEADER STRUCTURE
 

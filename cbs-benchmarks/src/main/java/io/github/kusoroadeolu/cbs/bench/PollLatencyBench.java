@@ -1,11 +1,11 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.rmq.Heap;
 import io.github.kusoroadeolu.cbs.rmq.KQueue;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
-import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -18,13 +18,17 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, time = 1)
 @Measurement(iterations = 10, time = 1)
-@Fork(value = 3, jvmArgs = {"-Xmx8g"})
+@Fork(value = 1, jvmArgsAppend = {"-Xlog:gc*:file=gc.log:time,uptime,level,tags"})
 
 public class PollLatencyBench {
     private RPQ<Integer> queue;
 
-    @Param({"KQ", "PBQ"})
+    @Param({"KQ"})
     private String type;
+
+    @Param({"GROWABLE"})
+    private String heapKind;
+
 
 
     final static int STEADY_STATE_SIZE = 65536;
@@ -37,7 +41,10 @@ public class PollLatencyBench {
     @Setup(Level.Trial)
     public void setup() {
         queue = switch (type) {
-            case "KQ" -> new KQueue<>(-1);
+            case "KQ" -> {
+                Heap.Kind kind = Heap.Kind.valueOf(heapKind);
+                yield new KQueue<>(-1, kind);
+            }
             case "PBQ" -> new PBQ<>();
             default -> throw new RuntimeException();
         };

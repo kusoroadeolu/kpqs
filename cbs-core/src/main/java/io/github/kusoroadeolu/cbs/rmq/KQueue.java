@@ -31,18 +31,20 @@ class KLPad {
 public class KQueue<E>  extends KLPad implements RPQ<E> {
 
     private static final int NCPU = Runtime.getRuntime().availableProcessors();
+    private static final int MAX_PUBLICATIONS_PER_SEGMENT = 32; //max number of publications a segment can make in the queue
     private static final int PROBE_LENGTH = NCPU >>> 1; //max length to probe for a worker to acquire before retrying
-    private static final int TOP_K = 32;
+
 
     private final Segment<E>[] segments;
+    private final MpscLeaderQueue queue;
     private final int mask;
-
-    private final TryLock resizeLock;
+    private final SpinLock combiningSpinLock;
     private final ArenaObject[] arena;
-    private volatile DeleteArray deleteArray;
 
 
     static final Object WAITER = new Object();
+    static final Object AWAIT = new Object();
+    static final Object NONE = new Object();
 
     static final int BACKOFF_SPINS = 64;
     static final int SPINS_PER_SLOT = 128;
@@ -50,164 +52,132 @@ public class KQueue<E>  extends KLPad implements RPQ<E> {
 
 
 
-    public KQueue(int concurrency) {
+    public KQueue(int concurrency, Heap.Kind kind) {
         int segmentSize = MiscUtils.roundToPowerOfTwo(concurrency <= 0 ? NCPU : concurrency);
         mask = segmentSize - 1;
         segments = new Segment[segmentSize];
+        queue = new MpscLeaderQueue(segmentSize * MAX_PUBLICATIONS_PER_SEGMENT);
         for (int i = 0; i < segmentSize; ++i) {
-            segments[i] = new Segment<>(null); //null for now cause im testing on ints
+            segments[i] = new Segment<>(MAX_PUBLICATIONS_PER_SEGMENT, queue, i, null, kind); //null for now cause im testing on ints
         }
 
-        resizeLock = new TryLock();
+        combiningSpinLock = new SpinLock();
         arena = new ArenaObject[segmentSize];
         for (int i = 0; i < segmentSize; ++i) {
             arena[i] = new ArenaObject();
         }
-
-        deleteArray = null; //null == uninitialized
     }
 
     @Override
     public boolean add(E e) {
         Objects.requireNonNull(e);
         int mask = this.mask;
-        var arena = this.arena;
         var segments = this.segments;
         Segment<E> segment;
         for (;;) {
-            int index = tryProbe(mask, segments, e, arena);
-            if (index == -1) return true; //matched
-            if (index >= 0) {
-                segment = segments[index];
+            if ((segment = tryProbe(mask, segments)) != null) {
                 try {
                     segment.add(e);
                     return true;
                 }finally {
-                    segment.unlock();
+                    segment.release();
                 }
-
             }
-
 
             Thread.onSpinWait();
         }
     }
 
-    //Returns -1 if found match, returns -2 (if timed out), otherwise returns the segment index
-    int tryProbe(int mask , Segment<E>[] segments, E elem, ArenaObject[] arena) {
+    Segment<E> tryProbe(int mask , Segment<E>[] segments) {
         int startIndex = ThreadLocalRandom.current().nextInt();
         for (int i = 0; i < PROBE_LENGTH; ++i) {
-            int offset = MiscUtils.offset(startIndex + i, mask);
+            int offset =  MiscUtils.offset(startIndex + i, mask);
             var segment = segments[offset];
-            if (segment.tryLock()) return offset;
-            else if (tryMatch(elem, arena[offset])) return -1;
+            if (segment.tryAcquire()) return segment;
         }
 
-        return -2;
-    }
-
-    boolean tryMatch(E elem, ArenaObject object) {
-        return object.loValue() == WAITER && object.casValue(WAITER, elem);
+        return null;
     }
 
     public E poll() {
         var arena = this.arena;
+        var mask = this.mask;
         var segments = this.segments;
-        var rs = resizeLock;
-        var da = deleteArray;
+        var csl = this.combiningSpinLock;
+        var q = queue;
 
-        outer: for (;;) {
-
-            if (da == null || da.isEmpty()) {
-                int mask = this.mask;
-                //In the case of da that never had elems
-                if (da != null && da.hasNoElems()) {
-                    boolean fwd = false;
+        for (;;) {
+            if (csl.tryLock()) {
+                try {
+                    int id = q.poll();
+                    E elem = doPoll(id, segments);
                     for (int i = 0; i <= mask; ++i) {
-                        var segment = segments[i];
-                        if (segment.peek() != null) {
-                            fwd = true;
-                            break;
+                        ArenaObject o = arena[i];
+                        if (o.loValue() == WAITER && o.casValue(WAITER, AWAIT)) {
+                            E value = doPoll(id, segments);
+                            o.soValue(value == null ? NONE : value);
                         }
                     }
 
-                    if (!fwd) return null;
+                    return elem;
+                }finally {
+                    csl.unlock();
                 }
+            }
 
-                //try lock otherwise move to arena
-                if (rs.tryLock()) {
-                    int index = 0;
 
-                    Object[] elems = new Object[TOP_K * (mask + 1)];
-                    try {
-                        for (int i = 0; i <= mask; ++i) {
-                            var segment = segments[i];
-                            int k = 0;
-                            E e;
+            int start = ThreadLocalRandom.current().nextInt();
+            inner: for (int step = 0, totalSpins = 0; (step < (mask + 1)) && (totalSpins < MAX_SPINS) && csl.isHeld(); step++) {
+                int index = (step + start) & mask;
+                var arenaObject = arena[index];
+                var seen = arenaObject.loValue();
+                if (seen == null && arenaObject.casValue(null, WAITER)) {
+                    int spins = 0;
 
-                            while ((e = segment.poll()) != null && k++ < TOP_K) {
-                                elems[index++] = e;
-                            }
+                    for (int backoffSpins = 0; ;) {
+                        seen = arenaObject.loValue();
+                        if (seen != WAITER) {
+                            Object elem;
+                            while ((elem = arenaObject.loValue()) == AWAIT) Thread.onSpinWait();
+                            arenaObject.soValue(null);
+                            return elem == NONE ? null : (E) elem;
+                        } else if ((spins >= SPINS_PER_SLOT) && arenaObject.casValue(WAITER, null)) {
+                            totalSpins += spins;
+                            continue inner;
                         }
 
-                        var newDa = new DeleteArray(elems, index);
-                        E ours = (E) newDa.currentElem();
-                        deleteArray = newDa;
-                        return ours;
-                    }finally {
-                        rs.unlock();
-                    }
-                } else {
-                    //failed to acquire lock don't sit idly by, try to match
-                    int start = ThreadLocalRandom.current().nextInt();
-                    inner: for (int step = 0, totalSpins = 0; (step < (mask + 1)) && (totalSpins < MAX_SPINS); step++) {
+                        while (++backoffSpins <= BACKOFF_SPINS) Thread.onSpinWait(); //avoid repeated spins on index to prevent cache line thrashing
 
-                        if (da != deleteArray) {
-                            da = deleteArray;
-                            continue outer;
-                        }
-
-                        int index = (step + start) & mask;
-                        var arenaObject = arena[index];
-                        var seen = arenaObject.loValue();
-                        if (seen == null && arenaObject.casValue(null, WAITER)) {
-                            int spins = 0;
-                            for (int backoffSpins = 0; ;) {
-                                seen = arenaObject.loValue();
-                                if (seen != WAITER) {
-                                    Object elem = arenaObject.loValue();
-                                    arenaObject.soValue(null);
-                                    return (E) elem;
-                                } else if ((spins >= SPINS_PER_SLOT) && arenaObject.casValue(WAITER, null)) {
-                                    totalSpins += spins;
-                                    continue inner;
-                                }
-
-                                while (++backoffSpins <= BACKOFF_SPINS) Thread.onSpinWait(); //avoid repeated spins on index to prevent cache line thrashing
-
-                                spins += backoffSpins;
-                                backoffSpins = 0;
-                            }
-                        }
+                        spins += backoffSpins;
+                        backoffSpins = 0;
                     }
                 }
-            } else {
-                E current = (E) da.currentElem();
-                if (current != null) return current;
             }
 
         }
     }
 
-//    @Override
-//    public String toString() {
-//        StringBuilder sb = new StringBuilder();
-//        for (int i = 0; i < segments.length; ++i) {
-//            sb.append("Worker %s: %s\n".formatted(i, segments[i].size()));
-//        }
-//
-//        return sb.toString();
-//    }
+    E doPoll(int id,  Segment<E>[] segments) {
+        if (id == -1) return null;
+        var segment = segments[id];
+        segment.acquire();
+        try {
+            return segment.poll();
+        }finally {
+            segment.release();
+        }
+
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < segments.length; ++i) {
+            sb.append("Worker %s: %s\n".formatted(i, segments[i].size()));
+        }
+
+        return sb.toString();
+    }
 
     @Override
     public E peek() {
@@ -277,39 +247,6 @@ public class KQueue<E>  extends KLPad implements RPQ<E> {
         byte b140,b141,b142,b143,b144,b145,b146,b147;//104b
         byte b150,b151,b152,b153,b154,b155,b156,b157;//112b
         byte b160,b161,b162,b163,b164,b165,b166,b167;//120b
-    }
-
-    static class DeleteArray {
-        final Object[] array;
-        final int capacity;
-        int index;
-        private static final VarHandle INDEX = VHUtils.fieldVarHandle(MethodHandles.lookup(), DeleteArray.class, "index", int.class);
-        volatile int state;
-
-        public DeleteArray(Object[] array, int capacity) {
-            this.array = array;
-            this.capacity = capacity;
-        }
-
-
-        public int capacity() {
-            return capacity;
-        }
-
-        public Object currentElem() {
-            int i = (int) INDEX.getAndAdd(this, 1);
-            if (i >= capacity) return null;
-            return array[i];
-        }
-
-        public boolean isEmpty() {
-            return index >= capacity;
-        }
-
-        public boolean hasNoElems() {
-            return capacity == 0;
-        }
-
     }
 
 }
