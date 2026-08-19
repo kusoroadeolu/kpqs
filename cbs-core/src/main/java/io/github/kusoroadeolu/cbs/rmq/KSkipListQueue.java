@@ -28,7 +28,7 @@ class KLPad {
     byte b170,b171,b172,b173,b174,b175,b176,b177;//128b
 }
 
-public class KQueue<E>  extends KLPad implements RPQ<E> {
+public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
 
     private static final int NCPU = Runtime.getRuntime().availableProcessors();
     private static final int PROBE_LENGTH = NCPU >>> 1; //max length to probe for a worker to acquire before retrying
@@ -50,7 +50,7 @@ public class KQueue<E>  extends KLPad implements RPQ<E> {
 
 
 
-    public KQueue(int concurrency) {
+    public KSkipListQueue(int concurrency) {
         int segmentSize = MiscUtils.roundToPowerOfTwo(concurrency <= 0 ? NCPU : concurrency);
         mask = segmentSize - 1;
         segments = new Segment[segmentSize];

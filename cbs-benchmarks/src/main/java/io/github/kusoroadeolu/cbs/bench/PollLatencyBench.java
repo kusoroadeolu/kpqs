@@ -1,7 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
-import io.github.kusoroadeolu.cbs.rmq.KQueue;
+import io.github.kusoroadeolu.cbs.rmq.KSkipListQueue;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -37,7 +37,7 @@ public class PollLatencyBench {
     @Setup(Level.Trial)
     public void setup() {
         queue = switch (type) {
-            case "KQ" -> new KQueue<>(-1);
+            case "KQ" -> new KSkipListQueue<>(-1);
             case "PBQ" -> new PBQ<>();
             default -> throw new RuntimeException();
         };
