@@ -1,15 +1,17 @@
 package io.github.kusoroadeolu.cbs.rmq;
 
+import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Comparator;
-import java.util.PriorityQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static io.github.kusoroadeolu.cbs.utils.MiscUtils.allocateArray;
+import static io.github.kusoroadeolu.cbs.rmq.Segment.siftDown;
+import static io.github.kusoroadeolu.cbs.rmq.Segment.siftUp;
+import static io.github.kusoroadeolu.cbs.utils.MiscUtils.*;
 
 class SegmentLPad {
     byte b000,b001,b002,b003,b004,b005,b006,b007;//  8b
@@ -31,76 +33,85 @@ class SegmentLPad {
 }
 
 class SegmentFields<E> extends SegmentLPad {
-    final List<E> insertBuffer;
+    final RingBuffer<E> insertBuffer;
     final SortedList<E> deleteBuffer; //sorted ring buffer (could also use a linked list to prevent shifting but arrays provide better cache locality)
     final Lock lock;
     final Comparator<? super E> comparator;
     final int id;
-    final Heap<E> heap;
     final MpscLeaderQueue queue;
 
     private static final VarHandle SIZE = VHUtils.fieldVarHandle(MethodHandles.lookup(), SegmentFields.class, "size", int.class);
     int size;
 
-//    E[] heap;
-//    int heapSize;
-//    int heapCapacity;
-//    private static final int INITIAL_HEAP_SIZE = 7;
+    E[] heap;
+    int heapSize;
+    int heapCapacity;
+//    final SpinLock heapAllocationLock;
 
     /**
      * Min amount of elements that should be in the leader queue if there are > 1 elements in this segment
      * */
-    private static final int MIN_DELETE_BUFFER_SIZE = 2;
+    private static final int MIN_DELETE_BUFFER_SIZE = 8;
 
 
     //del capacity should be a pow of 2
-    public SegmentFields(int deleteBufferCapacity, MpscLeaderQueue q, int id , Comparator<? super E> cmp, Heap.Kind kind) {
+    public SegmentFields(int deleteBufferCapacity, MpscLeaderQueue q, int id , Comparator<? super E> cmp) {
         this.comparator = comparator(cmp);
         deleteBuffer = new SortedList.SortedRingBuffer<>(allocateArray(deleteBufferCapacity), this.comparator);
-        insertBuffer = new List<>(allocateArray(deleteBufferCapacity * 3));
+        var insBufferCap = roundToPowerOfTwo(deleteBufferCapacity * 3);
+        insertBuffer = new RingBuffer<>(allocateArray(insBufferCap));
         lock = new ReentrantLock();
         queue = q;
         this.id = id;
-        lock.lock();
-        try {
-            heap = Heap.Kind.fromKind(kind, comparator);
-        }finally {
-            lock.unlock();
-        }
+        heap = allocateArray(insBufferCap);
+//        heapAllocationLock = new SpinLock();
     }
 
-    public void add(E e) {
+    public boolean add(E e) {
         var insBuffer = insertBuffer;
         var delBuffer = deleteBuffer;
 
-        E result = delBuffer.add(e);
+            E result = delBuffer.add(e);
 
-        //Successfully added (not full), publish id in leader queue
-        if (result == e) {
-            publishId();
-            SIZE.getAndAddRelease(this, 1);
-            return;
-        }
-
-        var heap = this.heap;
-
-        //Did we fail to insert (null) or buffer was full and we evicted the last elem(result)?
-        E toAdd = result == null ? e : result;
-
-        //Failed to add, try to add to insert buffer, then try heap
-        boolean added = insBuffer.add(toAdd);
-
-         //drain to heap then insert
-        if (!added) {
-            int s = insBuffer.size();
-            for (int i = 0; i < s; ++i) {
-                heap.add(insBuffer.valueAt(i));
-                insBuffer.removeAt(i);
+            //Successfully added (not full), publish id in leader queue
+            if (result == e) {
+                publishId();
+                SIZE.getAndAddRelease(this, 1);
+                return true;
             }
-            insBuffer.add(toAdd);
-        }
 
-        SIZE.getAndAddRelease(this, 1);
+            var heapCapacity = this.heapCapacity;
+
+            //Did we fail to insert (null) or buffer was full and we evicted the last elem(result)?
+            E toAdd = result == null ? e : result;
+
+            //Failed to add, try to add to insert buffer, then try heap
+            boolean added = insBuffer.add(toAdd);
+
+            //drain to heap then insert
+            if (!added) {
+                E value;
+                while ((value = insBuffer.peek()) != null) {
+                    if (!addToHeap(value)) {
+                        //should we resize under the lock or outside?, if we remove a value from del buffer resize under, else outside
+//                        if (result == null) {
+//                            grow(heapCapacity);
+//                        } else {
+//                            if (tryGrow(heap, heapCapacity)) continue outer;
+//                            else return false;
+//                        }
+                        grow(heapCapacity);
+                        addToHeap(value);
+                    }
+
+                    insBuffer.remove();
+                }
+
+                insBuffer.add(toAdd);
+            }
+
+            SIZE.getAndAddRelease(this, 1);
+            return true;
 
     }
 
@@ -113,18 +124,18 @@ class SegmentFields<E> extends SegmentLPad {
         if (result == null) return null;
 
         int dbSize = delBuffer.size();
-        var heap = this.heap;
 
         if (dbSize < MIN_DELETE_BUFFER_SIZE) { //Try to keep elements in the delete buffer
-            E val = heap.poll();
+            E val = pollHeap();
 
-            if (val == null) { //heap is initially empty, drain insert buf into heap, then repoll and add from heap
-                int s = insBuffer.size();
-                for (int i = 0; i < s; ++i) {
-                    heap.add(insBuffer.valueAt(i));
-                    insBuffer.removeAt(i);
+            if (val == null) { //heap is empty, drain insert buf into heap, then repoll and add from heap
+                E e;
+                while ((e = insBuffer.peek()) != null) {
+                    addToHeap(e);
+                    insBuffer.remove();
                 }
-                val = heap.poll();
+
+                val = pollHeap();
 
                 if (val != null) {
                     delBuffer.add(val);
@@ -133,8 +144,9 @@ class SegmentFields<E> extends SegmentLPad {
 
             } else {
                 delBuffer.add(val);
-                int s = insBuffer.size();
-                for (int i = 0; i < s; ++i) {
+
+                long end = insBuffer.endIndex();
+                for (long i = insBuffer.startIndex(); i < end; ++i) {
                     E last = delBuffer.peekLast();
                     E toCmp = insBuffer.valueAt(i);
                     int cmp = comparator.compare(last, toCmp);
@@ -155,55 +167,87 @@ class SegmentFields<E> extends SegmentLPad {
         return result;
     }
 
-
-
-
-//    public void add(E e) {
-//        int s = heapSize;
-//        int c = heapCapacity;
-//        if (s >= c)
-//            grow(c);
-//        siftUp(s, e, heap, comparator);
-//        heapSize = s + 1;
-//    }
-//
-//
-//
-//
-//    public E poll() {
-//        final E[] es;
-//        final E result;
-//
-//        if ((result = (es = heap)[0]) != null) {
-//            final int n;
-//            final E x = es[(n = --heapSize)];
-//            es[n] = null;
-//            if (n > 0) siftDown( x, es, n, comparator);
+//    boolean tryGrow(Object[] array, int heapCapacity) {
+//        release();
+//        E[] newArray = null;
+//        int newCapacity = growth(heapCapacity);
+//        if (heapAllocationLock.tryLock()) {
+//            try {
+//                if (array == this.heap)
+//                    newArray = (E[]) new Object[newCapacity];
+//            } finally {
+//                heapAllocationLock.unlock();
+//            }
 //        }
 //
-//        return result;
-//    }
-//
-//
-//
-//    void grow(int oldCap) {
-//        int growth = (oldCap < 64)
-//                ? (oldCap + 2) // grow faster if small
-//                : (oldCap >> 1);
-//        int newCap = newLength(oldCap, 1, growth);
-//        E[] b;
-//
-//        //Handle OOMEs gracefully, to prevent corrupting the structure
-//        try {
-//            b = allocateArray(newCap);
-//        }catch (OutOfMemoryError e) {
-//            throw new IllegalStateException("Out of memory", e);
+//        if (newArray == null) { //another thread is allocating
+//            Thread.yield();
+//            return false;
 //        }
 //
-//        System.arraycopy(heap, 0, b, 0, heapSize);
-//        heap = b;
-//        heapCapacity = newCap;
+//        acquire();
+//        if (array != this.heap) {
+//            System.arraycopy(heap, 0, newArray, 0, heapSize);
+//            this.heap = newArray;
+//            this.heapCapacity = newCapacity;
+//        }
+//
+//        return true;
 //    }
+
+    public boolean addToHeap(E e) {
+        int s = heapSize;
+        int c = heapCapacity;
+        if (s >= c) return false;
+        siftUp(s, e, heap, comparator);
+        heapSize = s + 1;
+        return true;
+    }
+
+
+
+
+    public E pollHeap() {
+        final E[] es;
+        final E result;
+
+        if ((result = (es = heap)[0]) != null) {
+            final int n;
+            final E x = es[(n = --heapSize)];
+            es[n] = null;
+            if (n > 0) siftDown( x, es, n, comparator);
+        }
+
+        return result;
+    }
+
+
+
+    void grow(int oldCap) {
+        int growth = (oldCap < 64)
+                ? (oldCap + 2) // grow faster if small
+                : (oldCap >> 1);
+        int newCap = newLength(oldCap, 1, growth);
+        E[] b;
+
+        //Handle OOMEs gracefully, to prevent corrupting the structure
+        try {
+            b = allocateArray(newCap);
+        }catch (OutOfMemoryError e) {
+            throw new IllegalStateException("Out of memory", e);
+        }
+
+        System.arraycopy(heap, 0, b, 0, heapSize);
+        heap = b;
+        heapCapacity = newCap;
+    }
+
+    int growth(int oldCap) {
+       int growth = (oldCap < 64)
+                ? (oldCap + 2) // grow faster if small
+                : (oldCap >> 1);
+        return newLength(oldCap, 1, growth);
+    }
 
     void publishId() {
         queue.offer(id);
@@ -227,53 +271,93 @@ class SegmentFields<E> extends SegmentLPad {
 
 
 
-    Comparator<? super E> comparator(Comparator<? super E> cmp) {
+    static <E> Comparator<? super E> comparator(Comparator<? super E> cmp) {
         if (cmp == null) return (a, b) -> ((Comparable<? super E>) a).compareTo(b);
         return cmp;
     }
 
+    static <E>void siftUp(int k, E x, E[] buffer, Comparator<? super E> comparator) {
+        while (k > 0) {
+            int parent = (k - 1) >>> 1;
+            E e = buffer[parent];
+            if (comparator.compare(x, e) >= 0)
+                break;
+            buffer[k] = e;
+            k = parent;
+        }
 
-    static class List<E> {
+        buffer[k] = x;
+    }
+
+    static <E>void siftDown(E x, E[] es, int n, Comparator<? super E> cmp) {
+        int k = 0;
+        int half = n >>> 1;
+        while (k < half) {
+            int child = (k << 1) + 1;
+            E c = es[child];
+            int right = child + 1;
+            if (right < n && cmp.compare(c, es[right]) > 0)
+                c = es[child = right];
+            if (cmp.compare(x, c) <= 0)
+                break;
+            es[k] = c;
+            k = child;
+        }
+        es[k] = x;
+    }
+
+
+    static class RingBuffer<E> {
         final E[] buffer;
-        final int capacity;
-        int size;
+        final int mask;
+        long pIndex;
+        long cIndex;
 
-        List(E[] buffer) {
+        RingBuffer(E[] buffer) {
             this.buffer = buffer;
-            capacity = buffer.length;
+            this.mask = (buffer.length - 1);
         }
 
         public boolean add(E elem) {
-            int s = size;
-            if (s == capacity) return false;
-            buffer[s] = elem;
-            ++size;
+            int s = size();
+            int mask = this.mask;
+            if (s == (mask + 1))
+                return false;
+
+            buffer[offset(pIndex++, mask)] = elem;
             return true;
         }
 
-        public void removeAt(int index) {
-            buffer[index] = null;
-            --size;
+        int size() {
+            return (int) (pIndex - cIndex);
         }
 
-        public void replace(int index, E replacement) {
-            buffer[index] = replacement;
+        public E peek() {
+            return buffer[offset(cIndex, mask)];
         }
 
-        public int size() {
-            return size;
+        public void replace(long index, E replacement) {
+            buffer[offset(index, mask)] = replacement;
         }
 
-        public E valueAt(int index) {
-            return buffer[index];
+        public void remove() {
+            if (size() == 0) return;
+            int offset = offset(cIndex++, mask);
+            buffer[offset] = null;
+        }
+
+        public long startIndex() {
+            return cIndex;
+        }
+
+        public long endIndex() {
+            return pIndex;
+        }
+
+        public E valueAt(long index) {
+            return buffer[offset(index, mask)];
         }
     }
-
-    //TODO: Allow for concurrent deletes during resizing (similar to PBQ)
-
-
-
-
 
 }
 
@@ -285,40 +369,7 @@ public class Segment<E> extends SegmentFields<E> {
     byte b040,b041,b042,b043,b044,b045,b046,b047;// 40b
     byte b050,b051,b052,b053,b054,b055,b056,b057;// 48b // 48 + 80 = 128
 
-    public Segment(int bufferSize, MpscLeaderQueue q, int id, Comparator<? super E> cmp, Heap.Kind kind) {
-        super(bufferSize, q, id, cmp, kind);
+    public Segment(int bufferSize, MpscLeaderQueue q, int id, Comparator<? super E> cmp) {
+        super(bufferSize, q, id, cmp);
     }
-
-
-//    static <E>void siftUp(int k, E x, E[] buffer, Comparator<? super E> comparator) {
-//        while (k > 0) {
-//            int parent = (k - 1) >>> 1;
-//            E e = buffer[parent];
-//            if (comparator.compare(x, e) >= 0)
-//                break;
-//            buffer[k] = e;
-//            k = parent;
-//        }
-//
-//        buffer[k] = x;
-//    }
-//
-//    static <E>void siftDown(E x, E[] es, int n, Comparator<? super E> cmp) {
-//        int k = 0;
-//        int half = n >>> 1;
-//        while (k < half) {
-//            int child = (k << 1) + 1;
-//            E c = es[child];
-//            int right = child + 1;
-//            if (right < n && cmp.compare(c, es[right]) > 0)
-//                c = es[child = right];
-//            if (cmp.compare(x, c) <= 0)
-//                break;
-//            es[k] = c;
-//            k = child;
-//        }
-//        es[k] = x;
-//    }
-
-
 }

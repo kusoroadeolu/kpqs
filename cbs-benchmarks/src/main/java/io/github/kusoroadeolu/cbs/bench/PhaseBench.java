@@ -1,6 +1,8 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.rmq.KQueue;
+import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -13,29 +15,29 @@ import java.util.concurrent.*;
 
 /*
  * This benchmark aims to measure how long it takes in a single shot
- * to fill the queue (up to an extent) under bursty inserts
+ * to fill the queue (up to an extent) under phased inserts
  * and then fully drain the queue
  *  * */
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 20, time = 1)
-@Measurement(iterations = 15, time = 1)
+@Warmup(iterations = 5, time = 1)
+@Measurement(iterations = 10, time = 1)
 @Fork(3)
-public class BurstQueueBench {
+public class PhaseBench {
 
     private RPQ<Integer> queue;
 
-    @Param({"1", "2", "4", "8"})
+    @Param({"8"})
     private String consumerCount;
 
-    @Param({"1", "2", "4", "8"})
+    @Param({"8"})
     private String producerCount;
 
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({ "KQ"})
+    @Param({"KQ"})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -43,8 +45,7 @@ public class BurstQueueBench {
 
     private static final int DELAY_PRODUCER = 0;
     private static final int DELAY_CONSUMER = 0;
-    private static final int BURST_TOTAL = 300_000;
-    private static final int CAPACITY = 500_000;
+    private static final int BURST_TOTAL = MiscUtils.roundToPowerOfTwo(1_000_000);
 
     private Producer[] producers;
     private Consumer[] consumers;
@@ -55,7 +56,7 @@ public class BurstQueueBench {
         int consumerCount = Integer.parseInt(this.consumerCount);
 
         queue = switch (type) {
-            case "KQ" -> new SBQ<>(null);
+            case "KQ" -> new KQueue<>(8);
             case "PBQ" -> new PBQ<>(); //Baseline priority blocking queue
             default -> throw new RuntimeException();
         };
@@ -229,7 +230,7 @@ public class BurstQueueBench {
     static class BenchRunner {
         static void main() throws RunnerException {
             Options options = new OptionsBuilder()
-                    .include(BurstQueueBench.class.getSimpleName())
+                    .include(PhaseBench.class.getSimpleName())
                     .result("results.json")
                     .resultFormat(ResultFormatType.JSON)
                     .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-pq")

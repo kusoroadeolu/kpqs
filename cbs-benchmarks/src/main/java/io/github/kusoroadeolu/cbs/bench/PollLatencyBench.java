@@ -1,7 +1,6 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
-import io.github.kusoroadeolu.cbs.rmq.Heap;
 import io.github.kusoroadeolu.cbs.rmq.KQueue;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -26,9 +25,6 @@ public class PollLatencyBench {
     @Param({"KQ"})
     private String type;
 
-    @Param({"GROWABLE"})
-    private String heapKind;
-
 
 
     final static int STEADY_STATE_SIZE = 65536;
@@ -41,10 +37,7 @@ public class PollLatencyBench {
     @Setup(Level.Trial)
     public void setup() {
         queue = switch (type) {
-            case "KQ" -> {
-                Heap.Kind kind = Heap.Kind.valueOf(heapKind);
-                yield new KQueue<>(-1, kind);
-            }
+            case "KQ" -> new KQueue<>(-1);
             case "PBQ" -> new PBQ<>();
             default -> throw new RuntimeException();
         };
