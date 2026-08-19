@@ -20,9 +20,9 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 10, time = 1)
 @Measurement(iterations = 10, time = 1)
 //
-@Fork(value = 1, jvmArgsAppend = {"-Xms8g", "-Xlog:gc*:file=gc.log:time,uptime,level,tags"})
+@Fork(value = 1)
 public class InsertThrptBench {
-    private RPQ<Integer> queue;
+    private KQueue<Integer> queue;
 
     @Param({"KQ"})
     private String type;
@@ -33,9 +33,9 @@ public class InsertThrptBench {
 
     final static int STEADY_STATE_SIZE = 65536;
 
-    @TearDown(Level.Trial)
+    @TearDown(Level.Iteration)
     public void teardown() {
-        queue = null;
+        queue.logSegmentSizes();
     }
 
 
@@ -46,7 +46,7 @@ public class InsertThrptBench {
                 Heap.Kind kind = Heap.Kind.valueOf(heapKind);
                 yield new KQueue<>(-1, kind);
             }
-            case "PBQ" -> new PBQ<>();
+           // case "PBQ" -> new PBQ<>();
             default -> throw new RuntimeException();
         };
 

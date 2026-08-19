@@ -62,7 +62,7 @@ public interface Heap<E> {
         void grow(int oldCap) {
             int growth = (oldCap < 64)
                     ? (oldCap + 2) // grow faster if small
-                    : (oldCap >> 1);
+                    : (oldCap >> 2);
             int newCap = newLength(oldCap, 1, growth);
             E[] b;
 

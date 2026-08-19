@@ -68,6 +68,19 @@ public class KQueue<E>  extends KLPad implements RPQ<E> {
         }
     }
 
+    public void logSegmentSizes() {
+        int min = Integer.MAX_VALUE, max = 0;
+        long sum = 0;
+        for (var s : segments) {
+            int sz = s.size(); // careful: only safe to call if this doesn't need the lock, check Segment
+            min = Math.min(min, sz);
+            max = Math.max(max, sz);
+            sum += sz;
+        }
+        double avg = sum / (double) segments.length;
+        System.out.printf("min=%d max=%d avg=%.1f (skew=%.1fx)%n", min, max, avg, max / Math.max(1.0, avg));
+    }
+
     @Override
     public boolean add(E e) {
         Objects.requireNonNull(e);

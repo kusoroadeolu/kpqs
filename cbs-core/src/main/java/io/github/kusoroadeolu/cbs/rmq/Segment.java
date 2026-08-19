@@ -4,12 +4,12 @@ import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.*;
+import java.util.Comparator;
+import java.util.PriorityQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.allocateArray;
-import static io.github.kusoroadeolu.cbs.utils.MiscUtils.newLength;
 
 class SegmentLPad {
     byte b000,b001,b002,b003,b004,b005,b006,b007;//  8b
@@ -31,15 +31,21 @@ class SegmentLPad {
 }
 
 class SegmentFields<E> extends SegmentLPad {
-    final Heap<E> heap; // 8 + 4 object header to ref size = 12 * 6 = 72 (+ 8 (both ints) = 80)
     final List<E> insertBuffer;
     final SortedList<E> deleteBuffer; //sorted ring buffer (could also use a linked list to prevent shifting but arrays provide better cache locality)
     final Lock lock;
     final Comparator<? super E> comparator;
     final int id;
+    final Heap<E> heap;
     final MpscLeaderQueue queue;
-    int size;
+
     private static final VarHandle SIZE = VHUtils.fieldVarHandle(MethodHandles.lookup(), SegmentFields.class, "size", int.class);
+    int size;
+
+//    E[] heap;
+//    int heapSize;
+//    int heapCapacity;
+//    private static final int INITIAL_HEAP_SIZE = 7;
 
     /**
      * Min amount of elements that should be in the leader queue if there are > 1 elements in this segment
@@ -149,6 +155,56 @@ class SegmentFields<E> extends SegmentLPad {
         return result;
     }
 
+
+
+
+//    public void add(E e) {
+//        int s = heapSize;
+//        int c = heapCapacity;
+//        if (s >= c)
+//            grow(c);
+//        siftUp(s, e, heap, comparator);
+//        heapSize = s + 1;
+//    }
+//
+//
+//
+//
+//    public E poll() {
+//        final E[] es;
+//        final E result;
+//
+//        if ((result = (es = heap)[0]) != null) {
+//            final int n;
+//            final E x = es[(n = --heapSize)];
+//            es[n] = null;
+//            if (n > 0) siftDown( x, es, n, comparator);
+//        }
+//
+//        return result;
+//    }
+//
+//
+//
+//    void grow(int oldCap) {
+//        int growth = (oldCap < 64)
+//                ? (oldCap + 2) // grow faster if small
+//                : (oldCap >> 1);
+//        int newCap = newLength(oldCap, 1, growth);
+//        E[] b;
+//
+//        //Handle OOMEs gracefully, to prevent corrupting the structure
+//        try {
+//            b = allocateArray(newCap);
+//        }catch (OutOfMemoryError e) {
+//            throw new IllegalStateException("Out of memory", e);
+//        }
+//
+//        System.arraycopy(heap, 0, b, 0, heapSize);
+//        heap = b;
+//        heapCapacity = newCap;
+//    }
+
     void publishId() {
         queue.offer(id);
     }
@@ -232,6 +288,37 @@ public class Segment<E> extends SegmentFields<E> {
     public Segment(int bufferSize, MpscLeaderQueue q, int id, Comparator<? super E> cmp, Heap.Kind kind) {
         super(bufferSize, q, id, cmp, kind);
     }
+
+
+//    static <E>void siftUp(int k, E x, E[] buffer, Comparator<? super E> comparator) {
+//        while (k > 0) {
+//            int parent = (k - 1) >>> 1;
+//            E e = buffer[parent];
+//            if (comparator.compare(x, e) >= 0)
+//                break;
+//            buffer[k] = e;
+//            k = parent;
+//        }
+//
+//        buffer[k] = x;
+//    }
+//
+//    static <E>void siftDown(E x, E[] es, int n, Comparator<? super E> cmp) {
+//        int k = 0;
+//        int half = n >>> 1;
+//        while (k < half) {
+//            int child = (k << 1) + 1;
+//            E c = es[child];
+//            int right = child + 1;
+//            if (right < n && cmp.compare(c, es[right]) > 0)
+//                c = es[child = right];
+//            if (cmp.compare(x, c) <= 0)
+//                break;
+//            es[k] = c;
+//            k = child;
+//        }
+//        es[k] = x;
+//    }
 
 
 }
