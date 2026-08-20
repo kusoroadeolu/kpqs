@@ -32,4 +32,9 @@ public class PBQ<E> implements RPQ<E> {
     public boolean isEmpty() {
         return size() == 0;
     }
+
+    @Override
+    public void clear() {
+        pq.clear();
+    }
 }

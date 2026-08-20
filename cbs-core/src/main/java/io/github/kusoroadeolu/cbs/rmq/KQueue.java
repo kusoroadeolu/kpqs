@@ -170,7 +170,7 @@ public class KQueue<E>  extends KLPad implements RPQ<E> {
         for (;;) {
             if ((segment = tryProbe(mask, segments)) != null) {
                 try {
-                    segment.add(e); //failed to add to this segment cause of a resize is occurring, try look for other segments
+                    segment.add(e);
                     return true;
                 }finally {
                     segment.release();
@@ -270,6 +270,13 @@ public class KQueue<E>  extends KLPad implements RPQ<E> {
         }
 
         return sb.toString();
+    }
+
+    public void clear() {
+        queue.clear();
+        for (int i = 0; i <= mask; ++i) {
+            segments[i].clear();
+        }
     }
 
     @Override

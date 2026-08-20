@@ -10,4 +10,6 @@ public interface RPQ<E> {
     int size();
 
     boolean isEmpty();
+
+    void clear();
 }

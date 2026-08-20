@@ -46,7 +46,7 @@ class SegmentFields<E> extends SegmentLPad {
     E[] heap;
     int heapSize;
     int heapCapacity;
-//    final SpinLock heapAllocationLock;
+  // final SpinLock heapAllocationLock;
 
     /**
      * Min amount of elements that should be in the leader queue if there are > 1 elements in this segment
@@ -64,13 +64,14 @@ class SegmentFields<E> extends SegmentLPad {
         queue = q;
         this.id = id;
         heap = allocateArray(insBufferCap);
-//        heapAllocationLock = new SpinLock();
+      //  heapAllocationLock = new SpinLock();
     }
 
     public boolean add(E e) {
         var insBuffer = insertBuffer;
         var delBuffer = deleteBuffer;
 
+       // outer: for (;;) {
             E result = delBuffer.add(e);
 
             //Successfully added (not full), publish id in leader queue
@@ -95,13 +96,13 @@ class SegmentFields<E> extends SegmentLPad {
                     if (!addToHeap(value)) {
                         //should we resize under the lock or outside?, if we remove a value from del buffer resize under, else outside
 //                        if (result == null) {
-//                            grow(heapCapacity);
+                            grow(heapCapacity);
+                            addToHeap(value);
 //                        } else {
-//                            if (tryGrow(heap, heapCapacity)) continue outer;
+//                            if (tryGrow(heap, heapCapacity)) continue outer; //segment might've changed under us, restart
 //                            else return false;
 //                        }
-                        grow(heapCapacity);
-                        addToHeap(value);
+
                     }
 
                     insBuffer.remove();
@@ -112,6 +113,7 @@ class SegmentFields<E> extends SegmentLPad {
 
             SIZE.getAndAddRelease(this, 1);
             return true;
+        //}
 
     }
 
@@ -180,13 +182,14 @@ class SegmentFields<E> extends SegmentLPad {
 //            }
 //        }
 //
-//        if (newArray == null) { //another thread is allocating
+//        if (newArray == null) { //another thread is allocating, try another segment
 //            Thread.yield();
 //            return false;
 //        }
 //
 //        acquire();
-//        if (array != this.heap) {
+//
+//        if (array == this.heap) {
 //            System.arraycopy(heap, 0, newArray, 0, heapSize);
 //            this.heap = newArray;
 //            this.heapCapacity = newCapacity;
@@ -219,6 +222,15 @@ class SegmentFields<E> extends SegmentLPad {
         }
 
         return result;
+    }
+
+    public void clearHeap() {
+        int h = heapSize;
+        for (int i = 0; i < h; ++i) {
+            heap[i] = null;
+        }
+
+        heapSize = 0;
     }
 
 
@@ -328,6 +340,15 @@ class SegmentFields<E> extends SegmentLPad {
             return true;
         }
 
+        public void clear() {
+            for (int i = 0; i <= mask; ++i) {
+                buffer[i] = null;
+            }
+
+            pIndex = 0;
+            cIndex = 0;
+        }
+
         int size() {
             return (int) (pIndex - cIndex);
         }
@@ -340,10 +361,12 @@ class SegmentFields<E> extends SegmentLPad {
             buffer[offset(index, mask)] = replacement;
         }
 
-        public void remove() {
-            if (size() == 0) return;
+        public E remove() {
+            if (size() == 0) return null;
             int offset = offset(cIndex++, mask);
+            E e = buffer[offset];
             buffer[offset] = null;
+            return e;
         }
 
         public long startIndex() {
@@ -371,5 +394,16 @@ public class Segment<E> extends SegmentFields<E> {
 
     public Segment(int bufferSize, MpscLeaderQueue q, int id, Comparator<? super E> cmp) {
         super(bufferSize, q, id, cmp);
+    }
+
+    void clear() {
+        acquire();
+        try {
+            deleteBuffer.clear();
+            insertBuffer.clear();
+            clearHeap();
+        } finally {
+          release();
+        }
     }
 }

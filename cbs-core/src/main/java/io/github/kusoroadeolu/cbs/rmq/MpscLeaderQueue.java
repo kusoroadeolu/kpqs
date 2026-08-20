@@ -262,4 +262,8 @@ public class MpscLeaderQueue extends LConsumerIndexLPad{
         return (lvProducerIndex() - lvConsumerIndex()) == 0;
     }
 
+    public void clear() {
+        while (poll() != -1) Thread.onSpinWait();
+    }
+
 }

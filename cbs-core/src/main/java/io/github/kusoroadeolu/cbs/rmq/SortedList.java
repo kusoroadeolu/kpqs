@@ -10,6 +10,7 @@ public interface SortedList<E> {
         int size();
         E poll();
         void removeLast();
+        void clear();
 
     //A sorted fixed capacity vector.
     static class SortedRingBuffer<E> implements SortedList<E>{
@@ -134,7 +135,14 @@ public interface SortedList<E> {
             return low;
         }
 
+        public void clear() {
+            for (int i = 0; i < (mask + 1); ++i) {
+                buffer[i] = null;
+            }
 
+            pIndex = 0;
+            cIndex = 0;
+        }
     }
 }
 

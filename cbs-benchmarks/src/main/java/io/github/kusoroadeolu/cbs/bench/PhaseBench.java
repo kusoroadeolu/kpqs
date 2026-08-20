@@ -23,7 +23,7 @@ import java.util.concurrent.*;
 @State(Scope.Benchmark)
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 10, time = 1)
-@Fork(3)
+@Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class PhaseBench {
 
     private RPQ<Integer> queue;
@@ -37,7 +37,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({"KQ"})
+    @Param({"KQ", "PBQ"})
     private String type;
 
     private CountDownLatch producerStarted;
