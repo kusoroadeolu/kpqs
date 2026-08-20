@@ -310,6 +310,20 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
             return capacity == 0;
         }
 
+        void clear() {
+            while (currentElem() != null) Thread.onSpinWait();
+        }
+
     }
 
+    @Override
+    public void clear() {
+        var segments = this.segments;
+        for (int i = 0; i <= mask; ++i) {
+            segments[i].clear();
+        }
+
+        var da = deleteArray;
+        if (da != null) da.clear();
+    }
 }

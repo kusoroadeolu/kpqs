@@ -1,5 +1,6 @@
 package io.github.kusoroadeolu.cbs.rmq;
 
+import io.github.kusoroadeolu.cbs.Box;
 import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;
@@ -28,7 +29,7 @@ class SegmentLPad {
 }
 
 class SegmentFields<E> extends SegmentLPad {
-    private final ConcurrentSkipListSet<E> set;
+    private final ConcurrentSkipListSet<Box<E>> set;
     private static final VarHandle STATE = VHUtils.fieldVarHandle(MethodHandles.lookup(), SegmentFields.class, "state", int.class);
     volatile int state;
     private static final int FREE = 0;
@@ -42,24 +43,40 @@ class SegmentFields<E> extends SegmentLPad {
         STATE.setRelease(this, FREE);
     }
 
-    public SegmentFields(Comparator<? super E> cmp) {
-        this.set = new ConcurrentSkipListSet<>(comparator(cmp));
+    public SegmentFields(Comparator<? super E> comparator) {
+        var cmp = Box.comparator(comparator);
+        java.util.Comparator<Box<E>> boxCmp = (a, b) -> {
+            if (a == b) return 0;
+            int c = cmp.compare(a.t, b.t);
+            if (c != 0) return c;
+            // same value, different instances -> break tie by identity, never 0
+            return Long.compare(a.seq, b.seq);
+        };
+
+        this.set = new ConcurrentSkipListSet<>(boxCmp);
     }
 
     public void add(E e) {
-        set.add(e);
+        set.add(new Box<>(e));
     }
 
     public E poll() {
-        return set.pollFirst();
+        Box<E> e;
+        return (e = set.pollFirst()) == null ? null : e.t;
     }
 
     public E peek() {
         try {
-            return set.getFirst();
+            Box<E> e = set.getFirst();
+            return e == null ? null : e.t;
         }catch (NoSuchElementException _) {
             return null;
         }
+    }
+
+
+    void clear() {
+        set.clear();
     }
 
 
@@ -89,4 +106,5 @@ public class Segment<E> extends SegmentFields<E> {
     public Segment(Comparator<? super E> cmp) {
         super(cmp);
     }
+
 }

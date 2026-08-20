@@ -1,5 +1,6 @@
 package io.github.kusoroadeolu.cbs.bench;
 
+import io.github.kusoroadeolu.cbs.FaaInt;
 import io.github.kusoroadeolu.cbs.RPQ;
 
 import java.lang.invoke.MethodHandles;
@@ -12,17 +13,14 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class SBQ<T extends Comparable<T>> implements RPQ<T> {
+public class SBQ<T> implements RPQ<T> {
 
     private final ConcurrentSkipListSet<Box<T>> nvs;
-    private final Comparator<Box<T>> boxCmp;
-
-    private static final int SPRAY_DISTANCE = 20;
 
     public SBQ(Comparator<T> comparator) {
 
         var cmp = Box.comparator(comparator);
-        this.boxCmp = (a, b) -> {
+        Comparator<Box<T>> boxCmp = (a, b) -> {
             if (a == b) return 0;
             int c = cmp.compare(a.t, b.t);
             if (c != 0) return c;
@@ -40,18 +38,6 @@ public class SBQ<T extends Comparable<T>> implements RPQ<T> {
 
     @Override
     public T poll() {
-//        var nvs = this.nvs;
-//        for (;;) {
-//            int i = 0;
-//            int bound = ThreadLocalRandom.current().nextInt(SPRAY_DISTANCE) + 1;
-//            Box<T> box = null;
-//            for (Iterator<Box<T>> it = nvs.iterator(); it.hasNext() && i++ <= bound; ) {
-//                box = it.next();
-//            }
-//
-//            if (box == null) return null;
-//            if (nvs.remove(box)) return box.t;
-//        }
         Box<T> e = null;
         return (e = nvs.pollFirst()) == null ? null : e.t;
     }
@@ -71,7 +57,12 @@ public class SBQ<T extends Comparable<T>> implements RPQ<T> {
         return size() == 0;
     }
 
-    static class Box<T extends Comparable<T>> {
+    @Override
+    public void clear() {
+
+    }
+
+    static class Box<T> {
         final T t;
         final long seq; // tie-breaker for identity, unique per Box
         private static final FaaInt SEQ = new FaaInt();
@@ -87,49 +78,6 @@ public class SBQ<T extends Comparable<T>> implements RPQ<T> {
         }
 
 
-        static class FaaInt {
-            private static final VarHandle I;
-            private volatile int i;
 
-            public FaaInt(int initial) {
-                i = initial;
-            }
-
-            public FaaInt() {
-                this(0);
-            }
-
-            public int fetchAndAdd(int i) {
-                return (int) I.getAndAdd(this, i);
-            }
-
-            public int fetchAndAdd() {
-                return fetchAndAdd(1);
-            }
-
-            public void setRelease(int i) {
-                I.setRelease(this, i);
-            }
-
-            public void setVolatile(int i) {
-                I.setVolatile(this, i);
-            }
-
-            public int getAcquire() {
-                return (int) I.getAcquire(this);
-            }
-
-            public int getVolatile() {
-                return (int) I.getVolatile(this);
-            }
-
-            static {
-                try {
-                    I = MethodHandles.lookup().findVarHandle(FaaInt.class, "i", int.class);
-                }catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
     }
 }
