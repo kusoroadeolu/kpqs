@@ -1,16 +1,14 @@
 package io.github.kusoroadeolu.cbs.rmq;
 
-import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static io.github.kusoroadeolu.cbs.rmq.Segment.siftDown;
-import static io.github.kusoroadeolu.cbs.rmq.Segment.siftUp;
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.*;
 
 class SegmentLPad {
@@ -51,20 +49,24 @@ class SegmentFields<E> extends SegmentLPad {
     /**
      * Min amount of elements that should be in the leader queue if there are > 1 elements in this segment
      * */
-    private static final int MIN_DELETE_BUFFER_SIZE = 8;
+    private final int MIN_DELETE_BUFFER_SIZE = 8;
 
 
     //del capacity should be a pow of 2
     public SegmentFields(int deleteBufferCapacity, MpscLeaderQueue q, int id , Comparator<? super E> cmp) {
+        this(deleteBufferCapacity, q, id, 0, cmp);
+    }
+
+    public SegmentFields(int deleteBufferCapacity, MpscLeaderQueue q, int id, int initialHeapSize ,Comparator<? super E> cmp) {
         this.comparator = comparator(cmp);
         deleteBuffer = new SortedList.SortedRingBuffer<>(allocateArray(deleteBufferCapacity), this.comparator);
         var insBufferCap = roundToPowerOfTwo(deleteBufferCapacity * 3);
-        insertBuffer = new RingBuffer<>(allocateArray(insBufferCap));
+        insertBuffer = new RingBuffer<>(allocateArray(Math.max(initialHeapSize, insBufferCap)));
         lock = new ReentrantLock();
         queue = q;
         this.id = id;
         heap = allocateArray(insBufferCap);
-      //  heapAllocationLock = new SpinLock();
+        //  heapAllocationLock = new SpinLock();
     }
 
     public boolean add(E e) {
@@ -75,36 +77,24 @@ class SegmentFields<E> extends SegmentLPad {
             E result = delBuffer.add(e);
 
             //Successfully added (not full), publish id in leader queue
-            if (result == e) {
-                publishId();
+            if (result == SortedList.added()) {
+                publishId(); //slowest path due to cache coherence traffic while publishing to the queue
                 SIZE.getAndAddRelease(this, 1);
                 return true;
             }
 
-            var heapCapacity = this.heapCapacity;
 
             //Did we fail to insert (null) or buffer was full and we evicted the last elem(result)?
             E toAdd = result == null ? e : result;
 
             //Failed to add, try to add to insert buffer, then try heap
-            boolean added = insBuffer.add(toAdd);
+            boolean added = insBuffer.add(toAdd); //fast path, if we don't need to drain the buffer
 
             //drain to heap then insert
             if (!added) {
                 E value;
                 while ((value = insBuffer.peek()) != null) {
-                    if (!addToHeap(value)) {
-                        //should we resize under the lock or outside?, if we remove a value from del buffer resize under, else outside
-//                        if (result == null) {
-                            grow(heapCapacity);
-                            addToHeap(value);
-//                        } else {
-//                            if (tryGrow(heap, heapCapacity)) continue outer; //segment might've changed under us, restart
-//                            else return false;
-//                        }
-
-                    }
-
+                    addToHeap(value); //slow path as we have to drain ins buffer to the heap
                     insBuffer.remove();
                 }
 
@@ -142,13 +132,14 @@ class SegmentFields<E> extends SegmentLPad {
                 if (val != null) {
                     delBuffer.add(val);
                     publishId(); //ensure to offer a new id when done
-                }
+                } //slowest path
 
             } else {
                 delBuffer.add(val);
 
+                long start = insBuffer.startIndex();
                 long end = insBuffer.endIndex();
-                for (long i = insBuffer.startIndex(); i < end; ++i) {
+                for (long i = start; i < end; ++i) {
                     E last = delBuffer.peekLast();
                     E toCmp = insBuffer.valueAt(i);
                     int cmp = comparator.compare(last, toCmp);
@@ -162,6 +153,7 @@ class SegmentFields<E> extends SegmentLPad {
                 }
 
                 publishId(); //ensure to offer a new id when done
+                //slow path
             }
         }
 
@@ -198,13 +190,13 @@ class SegmentFields<E> extends SegmentLPad {
 //        return true;
 //    }
 
-    public boolean addToHeap(E e) {
+    public void addToHeap(E e) {
         int s = heapSize;
         int c = heapCapacity;
-        if (s >= c) return false;
+        if (s >= c)
+            grow(c);
         siftUp(s, e, heap, comparator);
         heapSize = s + 1;
-        return true;
     }
 
 
@@ -361,12 +353,9 @@ class SegmentFields<E> extends SegmentLPad {
             buffer[offset(index, mask)] = replacement;
         }
 
-        public E remove() {
-            if (size() == 0) return null;
+        public void remove() {
             int offset = offset(cIndex++, mask);
-            E e = buffer[offset];
             buffer[offset] = null;
-            return e;
         }
 
         public long startIndex() {
@@ -380,6 +369,14 @@ class SegmentFields<E> extends SegmentLPad {
         public E valueAt(long index) {
             return buffer[offset(index, mask)];
         }
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(deleteBuffer).append("\n");
+        if (insertBuffer.size() != 0) sb.append(Arrays.toString(insertBuffer.buffer)).append("\n");
+        if (heapSize != 0 ) sb.append(Arrays.toString(heap));
+        return sb.toString();
     }
 
 }
@@ -396,6 +393,10 @@ public class Segment<E> extends SegmentFields<E> {
         super(bufferSize, q, id, cmp);
     }
 
+    public Segment(int bufferSize, MpscLeaderQueue q, int id, int initialHeapSize ,Comparator<? super E> cmp) {
+        super(bufferSize, q, id, initialHeapSize ,cmp);
+    }
+
     void clear() {
         acquire();
         try {
@@ -406,4 +407,6 @@ public class Segment<E> extends SegmentFields<E> {
           release();
         }
     }
+
+
 }

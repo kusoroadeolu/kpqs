@@ -2,6 +2,7 @@ package io.github.kusoroadeolu.cbs.rmq;
 
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 
+import java.util.Arrays;
 import java.util.Comparator;
 
 public interface SortedList<E> {
@@ -11,6 +12,11 @@ public interface SortedList<E> {
         E poll();
         void removeLast();
         void clear();
+        static final Object ADDED = new Object();
+
+        static <E>E added() {
+            return (E) ADDED;
+        }
 
     //A sorted fixed capacity vector.
     static class SortedRingBuffer<E> implements SortedList<E>{
@@ -39,7 +45,7 @@ public interface SortedList<E> {
             E res;
             if (s == 0) {
                 buffer[offset(pIndex++)] = e;
-                res = e;
+                res = added();
             } else {
                 long index = findInsertionPoint(e, s);
                 if (index == -1) return null; //failed to insert (e > buffer[size -1])
@@ -77,7 +83,7 @@ public interface SortedList<E> {
             pIndex--;
         }
 
-        //Returns elem if buffer is not full, otherwise returns the previous "last" element
+        //Returns added if buffer is not full, otherwise returns the previous "last" element
         E shiftRight(E elem, long index) {
             long pIndex = this.pIndex;
             boolean full = isFull();
@@ -92,14 +98,15 @@ public interface SortedList<E> {
                 toAdd = seen;
             }
 
-            return full ? seen : elem;
+            return full ? seen : added();
         }
 
 
         long findInsertionPoint(E elem, int s) {
             //Ensure capacity check so we don't reject an element when the vector isn't actually full
             if (s == capacity && comparator.compare(elem, buffer[offset(pIndex - 1)]) >= 0) return -1; // (>) too large
-            // (==) don't remove the last elem if it's == elem, otherwise, for primitives, add in the segment queue, could short circuit early
+            // (==) don't remove the last elem if it's == elem, otherwise for primitives if we evict a value == e and return e
+            // when checking if we should add the returned value to the ins buffer in the segment queue,
             return binarySearch(elem);
         }
 
@@ -142,6 +149,11 @@ public interface SortedList<E> {
 
             pIndex = 0;
             cIndex = 0;
+        }
+
+        @Override
+        public String toString() {
+            return Arrays.toString(buffer);
         }
     }
 }

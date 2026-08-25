@@ -1,5 +1,5 @@
 ---
-# K-Queue – An Unbounded Relaxed Priority Queue
+# K-Queue – An Unbounded Relaxed Priority Queue - Optimized for High Insert Thrpt
 
 
 ---
@@ -79,9 +79,9 @@
 ## Important Stuff
 
 1. To find an index to insert to, a thread generates a random number, calculates the offset of that number bound within the worker structure array length and then tries to acquire the lock on that worker structure (I should probably look at LongAdder cause I think it has some nice tricks in there)
-2. If it fails to acquire the lock, repeatedly 1-increments the number, calculates the offset at that index, then tries to acquire the lock at that index up to a bounded number of increments before generating a new number and trying again.
-3. For deletion, we use a MPSC queue with flat combining on the consumer side to make it MPMC. We could use a standard MPMC queue, however the reason for this is to prevent multiple deleting threads waiting and contending on the same lock for a worker queue to allow.
-4. One idea: if upcoming queue entries share the current ID, we could batch them under one lock instead of releasing and reacquiring for each.
+2. If it fails to acquire the lock, increments the number by some `X`, calculates the offset at that index, then tries to acquire the lock at that index up to a bounded number of increments before generating a new number and trying again.
+3. For deletion, we use a MPSC queue with a lock on the consumer side to make it MPMC. We might use a standard MPMC queue, however the reason for this is to prevent multiple deleting threads waiting and contending on the same lock for a worker queue to allow.
+Besides that, the upsert of a thread's id to the queue is only correct when serialized otherwise a thread might see the queue has no current id's when a deleting thread simply hasn't upserted one
 
 
 # KSkipListQueue - An unbounded relaxed priority queue
@@ -152,3 +152,20 @@ It consists of two levels, similar to my initial KQueue priority queue.
 3. If it succeeds, it traverses the segment array draining the top `K` elements without acquiring the lock (determined by the user) in `L` for each `S` into a new `D`.
 4. It then publishes new `D` before claiming an index, returning the value at `D` before returning.
 5. If `D` is present, it simply claims an index and returns the value in `D` at that index.
+
+### TODO
+Build a SPSC SkipList
+
+### Calculating rank error
+Let's say we have a range of integers 2/cp is the probability a given integer E ,which is the ith smallest integer, is present in one of the two queues we chose at random, (1 - 2/cp) is the probability there's an integer with smaller value that E is absent in the queues we chose. 
+Then (1 - 2/cp)^(i-1) is the probability that there are i - 1 (where i is the rank of E) smaller values than E absent in the 2 queues we chose.
+
+This only applies to the delete strategy where you choose 2 queues at random. For my own structure (KQueue), we actually don't choose 2 queues at random, so we'd have something
+like 1/cp rather than 2/cp. Recall c = a ratio, p = number of threads a machine cna run in parallel so cp = number of queues in the multiqueue
+
+
+
+## To benchmark
+1. Add a range ratio to my current insert benchmark (i.e min/max range) so we can see how priority range might affect thrpt
+2. A knapsack algorithm benchmark (parallel branch & bound benchmark for 0/1 Knapsack) using the queue as a best-first search frontier (idk what this means. YET)
+3. A steady state pop/modify/push benchmark (across different initial queue counts, or does that matter lol)

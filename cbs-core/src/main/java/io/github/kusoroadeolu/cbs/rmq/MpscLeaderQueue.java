@@ -42,7 +42,7 @@ class LCircularArray extends LCircularArrayLPad{
         }
     }
 
-    void soElem(int[] buf, int index , int i) {
+    void srElem(int[] buf, int index , int i) {
         BUFFER.setRelease(buf, index, i);
     }
 
@@ -50,8 +50,8 @@ class LCircularArray extends LCircularArrayLPad{
         BUFFER.set(buf, index, i);
     }
 
-    int lvElem(int[] buf, int index) {
-        return (int) BUFFER.getVolatile(buf, index);
+    int laElem(int[] buf, int index) {
+        return (int) BUFFER.getAcquire(buf, index);
     }
 }
 
@@ -86,12 +86,12 @@ class LProducerLimitField extends LCircularArrayRPad {
         super(capacity);
     }
 
-    void soProducerLimit(long limit) {
+    void srProducerLimit(long limit) {
         P_LIMIT.setRelease(this, limit);
     }
 
-    long lvProducerLimit() {
-        return (long) P_LIMIT.getVolatile(this);
+    long laProducerLimit() {
+        return (long) P_LIMIT.getAcquire(this);
     }
 }
 
@@ -176,8 +176,8 @@ class LConsumerIndexField extends LProducerIndexRPad {
         return (long) C_INDEX.getVolatile(this);
     }
 
-    public void soConsumerIndex(long index) {
-        C_INDEX.setRelease(this, index);
+    public void svConsumerIndex(long index) {
+        C_INDEX.setVolatile(this, index);
     }
 }
 
@@ -216,7 +216,7 @@ public class MpscLeaderQueue extends LConsumerIndexLPad{
         long mask = this.mask;
         long capacity = mask + 1;
 
-        long pLimit = lvProducerLimit();
+        long pLimit = laProducerLimit(); //coherence with the ordering guarantees provided by acq should be sufficient
         long pIndex;
         long cIndex;
 
@@ -229,12 +229,12 @@ public class MpscLeaderQueue extends LConsumerIndexLPad{
                 //i.e. cIndex = 0, pIndex = 0; pLimit should == (0 + cap)
 
                 if (pIndex >= pLimit) return;
-                else soProducerLimit(pLimit);
+                else srProducerLimit(pLimit);
             }
 
         }while (!casProducerIndex(pIndex, pIndex + 1));
 
-        soElem(buffer, offset(pIndex, mask), value);
+        srElem(buffer, offset(pIndex, mask), value);
     }
 
     //Only correct for single threaded usage
@@ -245,15 +245,15 @@ public class MpscLeaderQueue extends LConsumerIndexLPad{
         long cIndex = lpConsumerIndex();
         int offset = offset(cIndex, mask);
 
-        int elem = lvElem(buffer, offset); //we could use an acquire here no?
+        int elem = laElem(buffer, offset);
 
         if (elem == -1) {
             if (lvProducerIndex() == cIndex) return -1;
-            while ((elem = lvElem(buffer, offset)) == -1) Thread.onSpinWait();
+            while ((elem = laElem(buffer, offset)) == -1) Thread.onSpinWait();
         }
 
         spElem(buffer, offset, -1);
-        soConsumerIndex(cIndex + 1);
+        svConsumerIndex(cIndex + 1);
 
         return elem;
     }

@@ -6,10 +6,18 @@ import java.util.concurrent.PriorityBlockingQueue;
 
 public class PBQ<E> implements RPQ<E> {
 
-    private final PriorityBlockingQueue<E> pq = new PriorityBlockingQueue<>();
+    private final PriorityBlockingQueue<E> pq;
+
+    public PBQ(int initialCapacity) {
+        this.pq = new PriorityBlockingQueue<>(initialCapacity);
+    }
+
+    public PBQ() {
+        this.pq = new PriorityBlockingQueue<>();
+    }
 
     @Override
-    public boolean add(E e) {
+    public boolean offer(E e) {
         return pq.add(e);
     }
 
