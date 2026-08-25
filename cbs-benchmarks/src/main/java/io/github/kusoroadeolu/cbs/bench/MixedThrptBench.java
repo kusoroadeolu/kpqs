@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 10, time = 1)
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
-public class InsertThrptBench {
+public class MixedThrptBench {
     private RPQ<Integer> queue;
 
     @Param({RPQFactory.KQ, RPQFactory.PBQ})
@@ -108,7 +108,7 @@ public class InsertThrptBench {
     static class BenchRunner {
         static void main() throws RunnerException {
             Options options = new OptionsBuilder()
-                    .include(InsertThrptBench.class.getSimpleName())
+                    .include(MixedThrptBench.class.getSimpleName())
                     .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-mpmc-pq")
                     .build();
             new org.openjdk.jmh.runner.Runner(options).run();
@@ -116,7 +116,49 @@ public class InsertThrptBench {
         }
     }
 }
-/**
+/*
+╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.full_insert ─╮
+│  Type                  Score  Error   Unit                     │
+│  --------------------- ------ ------- ------                   │
+│  KQueue                31.616 ± 2.375 ops/us                   │
+│  PriorityBlockingQueue 14.472 ± 0.621 ops/us                   │
+╰────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
+│  Type                  Role       Score  Error   Unit          │
+│  --------------------- ---------- ------ ------- ------        │
+│  KQueue                fifty_add  22.384 ± 2.047 ops/us        │
+│  KQueue                fifty_poll 0.229  ± 0.032 ops/us        │
+│  KQueue                pollHit    0.230  ± 0.033 ops/us        │
+│  KQueue                pollMiss   0.001  ± 0.002 ops/us        │
+│  KQueue                aggregate  22.614 ± 2.035 ops/us        │
+│  PriorityBlockingQueue fifty_add  4.519  ± 0.899 ops/us        │
+│  PriorityBlockingQueue fifty_poll 6.861  ± 2.437 ops/us        │
+│  PriorityBlockingQueue pollHit    4.415  ± 0.999 ops/us        │
+│  PriorityBlockingQueue pollMiss   2.447  ± 1.521 ops/us        │
+│  PriorityBlockingQueue aggregate  11.380 ± 3.308 ops/us        │
+╰────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
+│  Type                  Role             Score  Error   Unit    │
+│  --------------------- ---------------- ------ ------- ------  │
+│  KQueue                pollHit          0.105  ± 0.014 ops/us  │
+│  KQueue                pollMiss         0.000  ± 0.000 ops/us  │
+│  KQueue                seventy_five_add 26.379 ± 1.776 ops/us  │
+│  KQueue                twenty_five_poll 0.105  ± 0.014 ops/us  │
+│  KQueue                aggregate        26.484 ± 1.780 ops/us  │
+│  PriorityBlockingQueue pollHit          2.506  ± 0.112 ops/us  │
+│  PriorityBlockingQueue pollMiss         0.001  ± 0.003 ops/us  │
+│  PriorityBlockingQueue seventy_five_add 3.015  ± 0.140 ops/us  │
+│  PriorityBlockingQueue twenty_five_poll 2.507  ± 0.112 ops/us  │
+│  PriorityBlockingQueue aggregate        5.522  ± 0.091 ops/us  │
+╰────────────────────────────────────────────────────────────────╯
+
+
+* */
+
+
+/*
  *     /*
  *     * Profile notes:
  *     * Most of the time is spent doing work in "add" is in the segment.add() method which is nice

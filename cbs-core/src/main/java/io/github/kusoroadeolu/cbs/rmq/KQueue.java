@@ -93,6 +93,11 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
     private final Segment<E>[] segments;
     private final MpscLeaderQueue queue;
     private final int mask;
+    private final ThreadLocal<ProbeState> state = ThreadLocal.withInitial(ProbeState::new);
+
+    static class ProbeState {
+        int hash = ThreadLocalRandom.current().nextInt();
+    }
 
     public KQueue(int concurrency) {
         this(concurrency, 7);
@@ -126,9 +131,10 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
         Objects.requireNonNull(e);
         int mask = this.mask;
         var segments = this.segments;
+        var state = this.state.get();
         Segment<E> segment;
         for (;;) {
-            if ((segment = tryProbe(mask, segments)) != null) {
+            if ((segment = tryProbe(mask, segments, state)) != null) {
                 try {
                     segment.add(e);
                     return true;
@@ -136,19 +142,18 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
                     segment.release();
                 }
             }
-
-    //        Thread.onSpinWait();
         }
     }
 
-    Segment<E> tryProbe(int mask , Segment<E>[] segments) {
-        int start = ThreadLocalRandom.current().nextInt();
+    Segment<E> tryProbe(int mask , Segment<E>[] segments, ProbeState state) {
+        int start = state.hash;
         for (int steps = 0; steps < PROBE_DISTANCE; ++steps) {
             int offset =  offset(start + steps, mask);
             var segment = segments[offset];
             if (segment.tryAcquire()) return segment; //retry on fail, don't want to wait on a locked segment
         }
 
+        state.hash = ThreadLocalRandom.current().nextInt();
         return null;
     }
 
@@ -160,7 +165,7 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
 //        var req = new PollRequest(Thread.currentThread());
 
         synchronized (lock) {
-            var id = queue.poll();
+            var id = q.poll();
             return doPoll(id, segments);
         }
 //

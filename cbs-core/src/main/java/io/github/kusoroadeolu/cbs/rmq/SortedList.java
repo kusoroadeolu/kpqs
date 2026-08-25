@@ -7,10 +7,9 @@ import java.util.Comparator;
 
 public interface SortedList<E> {
         E add(E e);
-        E peekLast();
+        E offer(E e);
         int size();
         E poll();
-        void removeLast();
         void clear();
         static final Object ADDED = new Object();
 
@@ -41,6 +40,24 @@ public interface SortedList<E> {
          * Returns null if failed to add
          * Returns previous maximum if successfully added and buffer was full
          * */
+        public E offer(E e) {
+            int s = size();
+
+            E res;
+            if (s == 0) {
+                buffer[offset(pIndex++)] = e;
+                res = added();
+            } else {
+                if (comparator.compare(e, buffer[offset(pIndex - 1)]) >= 0) return null; // (>) too large
+                long index = findInsertionPoint(e);
+                res = shiftRight(e, index);
+                if (!isFull()) ++pIndex;
+
+            }
+
+            return res;
+        }
+
         public E add(E e) {
             int s = size();
 
@@ -105,7 +122,6 @@ public interface SortedList<E> {
 
 
         long findInsertionPoint(E elem) {
-            if (comparator.compare(elem, buffer[offset(pIndex - 1)]) >= 0) return -1; // (>) too large
             // (==) don't remove the last elem if it's == elem, otherwise for primitives if we evict a value == e and return e
             // when checking if we should add the returned value to the ins buffer in the segment queue,
             return binarySearch(elem);

@@ -69,7 +69,10 @@ class SegmentFields<E> extends SegmentLPad {
         var delBuffer = deleteBuffer;
 
        // outer: for (;;) {
-            E result = delBuffer.add(e);
+            E result;
+            if (insBuffer.size() == 0 && heapSize == 0) result = delBuffer.add(e);
+            else result = delBuffer.offer(e);
+
 
             //Successfully added (not full), publish id in leader queue
             if (result == SortedList.added()) {

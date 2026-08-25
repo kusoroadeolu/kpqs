@@ -22,7 +22,7 @@ import java.util.concurrent.*;
 @State(Scope.Benchmark)
 @Warmup(iterations = 15, time = 1)
 @Measurement(iterations = 20, time = 1)
-@Fork(value = 3, jvmArgs = {
+@Fork(value = 20, jvmArgs = {
         JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG
 })
 public class PhaseBench {
@@ -35,7 +35,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({"KQ", "PBQ"})
+    @Param({"KQ"})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -234,12 +234,21 @@ public class PhaseBench {
 
     static class BenchRunner {
         static void main() throws RunnerException {
-//            Options options = new OptionsBuilder()
-//                    .include(PhaseBench.class.getSimpleName())
-//                    .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-mpmc-pq")
-//                    .build();
-//            new org.openjdk.jmh.runner.Runner(options).run();
+            Options options = new OptionsBuilder()
+                    .include(PhaseBench.class.getSimpleName())
+                    .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-mpmc-pq")
+                    .build();
+            new org.openjdk.jmh.runner.Runner(options).run();
         }
     }
 }
+
+/*
+╭ io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ─╮
+│  ConsumerProducerThreadCount Type Score    Error     Unit      │
+│  --------------------------- ---- -------- --------- -----     │
+│  8                           KQ   2081.842 ± 317.353 us/op     │
+│  8                           PBQ  1217.208 ± 90.112  us/op     │
+╰────────────────────────────────────────────────────────────────╯
+* */
 

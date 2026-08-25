@@ -211,7 +211,7 @@ public class MpscLeaderQueue extends LConsumerIndexLPad{
         super(capacity);
     }
 
-    public void offer(int value) {
+    public boolean offer(int value) {
         int[] buffer = this.buffer;
         long mask = this.mask;
         long capacity = mask + 1;
@@ -228,13 +228,14 @@ public class MpscLeaderQueue extends LConsumerIndexLPad{
                 pLimit = cIndex + capacity; //available slots
                 //i.e. cIndex = 0, pIndex = 0; pLimit should == (0 + cap)
 
-                if (pIndex >= pLimit) return;
+                if (pIndex >= pLimit) return false;
                 else srProducerLimit(pLimit);
             }
 
         }while (!casProducerIndex(pIndex, pIndex + 1));
 
         srElem(buffer, offset(pIndex, mask), value);
+        return true;
     }
 
     //Only correct for single threaded usage
