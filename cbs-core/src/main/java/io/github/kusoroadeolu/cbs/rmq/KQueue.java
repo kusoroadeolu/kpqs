@@ -104,7 +104,8 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
         mask = segmentSize - 1;
         segments = new Segment[segmentSize];
         queue = new MpscLeaderQueue(segmentSize * MAX_PUBLICATIONS_PER_SEGMENT);
-        for (int id = 0; id < segmentSize; ++id) segments[id] = new Segment<>(MAX_PUBLICATIONS_PER_SEGMENT, queue, id, initialHeapSize ,null);
+        for (int id = 0; id < segmentSize; ++id)
+            segments[id] = new Segment<>(MAX_PUBLICATIONS_PER_SEGMENT, queue, id, initialHeapSize ,null);
     }
 
 //    public void logSegmentSizes() {
@@ -210,7 +211,7 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < segments.length; ++i) {
-            sb.append("Worker %s: %s\n".formatted(i, segments[i].size()));
+            sb.append("Worker %s: %s\n".formatted(i, segments[i]));
         }
 
         return sb.toString();

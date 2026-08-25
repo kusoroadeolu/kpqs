@@ -46,11 +46,6 @@ class SegmentFields<E> extends SegmentLPad {
     int heapCapacity;
   // final SpinLock heapAllocationLock;
 
-    /**
-     * Min amount of elements that should be in the leader queue if there are > 1 elements in this segment
-     * */
-    private final int MIN_DELETE_BUFFER_SIZE = 8;
-
 
     //del capacity should be a pow of 2
     public SegmentFields(int deleteBufferCapacity, MpscLeaderQueue q, int id , Comparator<? super E> cmp) {
@@ -61,11 +56,11 @@ class SegmentFields<E> extends SegmentLPad {
         this.comparator = comparator(cmp);
         deleteBuffer = new SortedList.SortedRingBuffer<>(allocateArray(deleteBufferCapacity), this.comparator);
         var insBufferCap = roundToPowerOfTwo(deleteBufferCapacity * 3);
-        insertBuffer = new RingBuffer<>(allocateArray(Math.max(initialHeapSize, insBufferCap)));
+        insertBuffer = new RingBuffer<>(allocateArray(insBufferCap));
         lock = new ReentrantLock();
         queue = q;
         this.id = id;
-        heap = allocateArray(insBufferCap);
+        heap = allocateArray(Math.max(initialHeapSize, insBufferCap));
         //  heapAllocationLock = new SpinLock();
     }
 
@@ -82,7 +77,6 @@ class SegmentFields<E> extends SegmentLPad {
                 SIZE.getAndAddRelease(this, 1);
                 return true;
             }
-
 
             //Did we fail to insert (null) or buffer was full and we evicted the last elem(result)?
             E toAdd = result == null ? e : result;
@@ -115,47 +109,22 @@ class SegmentFields<E> extends SegmentLPad {
 
         if (result == null) return null;
 
-        int dbSize = delBuffer.size();
 
-        if (dbSize < MIN_DELETE_BUFFER_SIZE) { //Try to keep elements in the delete buffer
-            E val = pollHeap();
+        if (delBuffer.isEmpty()) { //Keep elements in the delete buffer
+            E e;
 
-            if (val == null) { //heap is empty, drain insert buf into heap, then repoll and add from heap
-                E e;
-                while ((e = insBuffer.peek()) != null) {
-                    addToHeap(e);
-                    insBuffer.remove();
-                }
-
-                val = pollHeap();
-
-                if (val != null) {
-                    delBuffer.add(val);
-                    publishId(); //ensure to offer a new id when done
-                } //slowest path
-
-            } else {
-                delBuffer.add(val);
-
-                long start = insBuffer.startIndex();
-                long end = insBuffer.endIndex();
-                for (long i = start; i < end; ++i) {
-                    E last = delBuffer.peekLast();
-                    E toCmp = insBuffer.valueAt(i);
-                    int cmp = comparator.compare(last, toCmp);
-
-                    if (cmp > 0) {
-                        E seen = delBuffer.add(toCmp);
-                        delBuffer.removeLast();
-                        assert seen == last;
-                        insBuffer.replace(i, last);
-                    }
-                }
-
-                publishId(); //ensure to offer a new id when done
-                //slow path
+            while ((e = insBuffer.peek()) != null){
+                addToHeap(e);
+                insBuffer.remove();
             }
-        }
+
+            E added = pollHeap();
+            if (added != null) {
+                delBuffer.add(added);
+                publishId();
+            }
+
+         }
 
         SIZE.getAndAddRelease(this, -1);
         return result;
@@ -274,6 +243,10 @@ class SegmentFields<E> extends SegmentLPad {
     }
 
 
+    public void resetSize() {
+        SIZE.setRelease(this, 0);
+    }
+
 
     static <E> Comparator<? super E> comparator(Comparator<? super E> cmp) {
         if (cmp == null) return (a, b) -> ((Comparable<? super E>) a).compareTo(b);
@@ -349,33 +322,17 @@ class SegmentFields<E> extends SegmentLPad {
             return buffer[offset(cIndex, mask)];
         }
 
-        public void replace(long index, E replacement) {
-            buffer[offset(index, mask)] = replacement;
-        }
-
         public void remove() {
             int offset = offset(cIndex++, mask);
             buffer[offset] = null;
-        }
-
-        public long startIndex() {
-            return cIndex;
-        }
-
-        public long endIndex() {
-            return pIndex;
-        }
-
-        public E valueAt(long index) {
-            return buffer[offset(index, mask)];
         }
     }
 
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(deleteBuffer).append("\n");
-        if (insertBuffer.size() != 0) sb.append(Arrays.toString(insertBuffer.buffer)).append("\n");
-        if (heapSize != 0 ) sb.append(Arrays.toString(heap));
+        sb.append("Delete Buffer: ").append(deleteBuffer).append("\n");
+        sb.append("Insert Buffer: ").append(Arrays.toString(insertBuffer.buffer)).append("\n");
+        sb.append("Heap: ").append(Arrays.toString(heap));
         return sb.toString();
     }
 
@@ -403,6 +360,7 @@ public class Segment<E> extends SegmentFields<E> {
             deleteBuffer.clear();
             insertBuffer.clear();
             clearHeap();
+            resetSize();
         } finally {
           release();
         }

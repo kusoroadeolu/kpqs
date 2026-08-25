@@ -22,7 +22,7 @@ import static io.github.kusoroadeolu.cbs.utils.MiscUtils.xorShift;
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class SteadyStateBench {
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.KQ, RPQFactory.PBQ})
     private String type;
 
     private RPQ<Integer> queue;

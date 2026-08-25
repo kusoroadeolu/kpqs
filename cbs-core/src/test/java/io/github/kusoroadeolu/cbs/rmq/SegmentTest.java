@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,7 +15,7 @@ class SegmentTest {
 
     @Test
     void onAdds_assertReturnsMin() {
-        Segment<Integer> s = new Segment<>(4, queue, 0, null);
+        Segment<Integer> s = newSegment(4);
         for (int i = 4; i > 0; --i) {
             s.add(i);
         }
@@ -22,43 +24,104 @@ class SegmentTest {
         Assertions.assertEquals(1, i);
     }
 
+    private Segment<Integer> newSegment(int deleteBufferCapacity) {
+        return new Segment<>(deleteBufferCapacity, queue, 0, Integer::compareTo);
+    }
+
     @Test
-    void onMixedPushPop_assertMaintainsMinOrder() {
-        Segment<Integer> s = new Segment<>(16, queue, 0, null);
-        for (int i = 1; i <= 16; ++i) {
-            s.add(i * 3);
+    void addThenPollSingleElement() {
+        Segment<Integer> seg = newSegment(8);
+        assertTrue(seg.add(42));
+        assertEquals(1, seg.size());
+        assertEquals(42, seg.poll());
+        assertEquals(0, seg.size());
+        assertNull(seg.poll());
+    }
+
+    @Test
+    void pollReturnsInSortedOrder_smallBatch_staysInDeleteBuffer() {
+        Segment<Integer> seg = newSegment(16);
+        List<Integer> input = List.of(5, 3, 9, 1, 7);
+        input.forEach(seg::add);
+        System.out.println(seg);
+
+        List<Integer> out = new ArrayList<>();
+        Integer v;
+        while ((v = seg.poll()) != null) {
+            System.out.println(seg);
+            System.out.println();
+            out.add(v);
         }
 
-        s.add(46); //this should knock out 48 to the ins buffer
+        List<Integer> expected = new ArrayList<>(input);
 
-        s.poll();
+        Collections.sort(expected);
+        assertEquals(expected, out);
+    }
 
-        s.add(49);
-
-        //Add a larger value than 30
-
-        //Here, 48 is in the ins buffer while 49 is in the del buffer
-
-        for (int i = 0; i < 8; ++i) {
-            s.poll();
+    @Test
+    void noLostWrites_overflowsIntoInsertBufferAndHeap() {
+        // small delete buffer capacity so we're forced past it into insertBuffer/heap
+        Segment<Integer> seg = newSegment(8);
+        int n = 5000;
+        Random r = new Random(1234);
+        List<Integer> input = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            int val = r.nextInt(1_000_000);
+            input.add(val);
+            assertTrue(seg.add(val));
         }
 
-        int high = 50;
-        for (int i = 0; i < 8; ++i) {
-            s.add(high++);
+        assertEquals(n, seg.size());
+
+        List<Integer> out = new ArrayList<>(n);
+        Integer v;
+        while ((v = seg.poll()) != null) out.add(v);
+
+        assertEquals(0, seg.size());
+        assertEquals(n, out.size(), "lost or duplicated writes");
+
+        List<Integer> expected = new ArrayList<>(input);
+        Collections.sort(expected);
+        assertEquals(expected, out, "poll order not fully sorted");
+    }
+
+    @Test
+    void interleavedAddPoll_maintainsSortedInvariant() {
+        Segment<Integer> seg = newSegment(8);
+        Random r = new Random(99);
+        List<Integer> reference = new ArrayList<>();
+
+        for (int i = 0; i < 10_000; i++) {
+            if (reference.isEmpty() || r.nextDouble() < 0.6) {
+                int val = r.nextInt(1_000_000);
+                seg.add(val);
+                reference.add(val);
+                Collections.sort(reference);
+            } else {
+                Integer expected = reference.removeFirst();
+                Integer actual = seg.poll();
+                assertEquals(expected, actual);
+            }
         }
 
-        s.poll(); //remove one of the min which is less than 48
-
-        s.add(58);
-
-        List<Integer> ls = new ArrayList<>();
-        for (int i = 0; i < 7; ++i) {
-            ls.add(s.poll());
+        // drain remainder
+        Integer v;
+        int idx = 0;
+        while ((v = seg.poll()) != null) {
+            assertEquals(reference.get(idx++), v);
         }
+        assertEquals(reference.size(), idx);
+    }
 
-        //here we should get 49 before 48, a bug!
-        Assertions.assertFalse(ls.contains(49));
+    @Test
+    void clearResetsEverything() {
+        Segment<Integer> seg = newSegment(8);
+        for (int i = 0; i < 100; i++) seg.add(i);
+        seg.clear();
+        assertEquals(0, seg.heapSize);
+        assertEquals(0, seg.insertBuffer.size());
+        assertEquals(0, seg.deleteBuffer.size());
     }
 
 }

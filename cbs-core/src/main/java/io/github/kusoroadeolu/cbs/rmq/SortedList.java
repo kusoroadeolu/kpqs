@@ -18,6 +18,8 @@ public interface SortedList<E> {
             return (E) ADDED;
         }
 
+    boolean isEmpty();
+
     //A sorted fixed capacity vector.
     static class SortedRingBuffer<E> implements SortedList<E>{
         final E[] buffer;
@@ -47,7 +49,7 @@ public interface SortedList<E> {
                 buffer[offset(pIndex++)] = e;
                 res = added();
             } else {
-                long index = findInsertionPoint(e, s);
+                long index = findInsertionPoint(e);
                 if (index == -1) return null; //failed to insert (e > buffer[size -1])
                 res = shiftRight(e, index);
                 if (!isFull()) ++pIndex;
@@ -102,9 +104,8 @@ public interface SortedList<E> {
         }
 
 
-        long findInsertionPoint(E elem, int s) {
-            //Ensure capacity check so we don't reject an element when the vector isn't actually full
-            if (s == capacity && comparator.compare(elem, buffer[offset(pIndex - 1)]) >= 0) return -1; // (>) too large
+        long findInsertionPoint(E elem) {
+            if (comparator.compare(elem, buffer[offset(pIndex - 1)]) >= 0) return -1; // (>) too large
             // (==) don't remove the last elem if it's == elem, otherwise for primitives if we evict a value == e and return e
             // when checking if we should add the returned value to the ins buffer in the segment queue,
             return binarySearch(elem);
@@ -114,7 +115,7 @@ public interface SortedList<E> {
             return size() == capacity;
         }
 
-        boolean isEmpty() {
+        public boolean isEmpty() {
             return pIndex == cIndex;
         }
 
