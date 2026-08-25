@@ -12,7 +12,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-@BenchmarkMode(Mode.SampleTime)
+@BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, time = 1)
@@ -24,25 +24,21 @@ public class InsertThrptBench {
     @Param({"KQ"})
     private String type;
 
-    final static int STEADY_STATE_SIZE = 10_000_000;
-    final static int RANGE = 100_000_000;
+    final static int RANGE = 10_000_000;
 
     @TearDown(Level.Iteration)
     public void teardown() {
-        queue.clear();
+        synchronized (queue) {
+            queue.clear();
+        }
     }
 
     @Setup(Level.Trial)
     public void setup() {
         queue = switch (type) {
             case "KQ" -> new KSkipListQueue<>(8);
-            case "PBQ" -> new PBQ<>();
             default -> throw new RuntimeException();
         };
-
-        for (int i = 0; i < STEADY_STATE_SIZE; i++) {
-            queue.add(ThreadLocalRandom.current().nextInt(RANGE));
-        }
     }
 
     @AuxCounters(AuxCounters.Type.OPERATIONS)
@@ -58,12 +54,12 @@ public class InsertThrptBench {
         }
     }
 
-    @Threads(8)
-    @Benchmark
-    public void eight_insert(Blackhole bh) {
-        int val = ThreadLocalRandom.current().nextInt(RANGE);
-        bh.consume(queue.add(val));
-    }
+//    @Threads(8)
+//    @Benchmark
+//    public void eight_insert(Blackhole bh) {
+//        int val = ThreadLocalRandom.current().nextInt(0, RANGE);
+//        bh.consume(queue.add(val));
+//    }
 
     @Group("ratio_6_2")
     @GroupThreads(6)

@@ -6,6 +6,7 @@ import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -32,7 +33,7 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
 
     private static final int NCPU = Runtime.getRuntime().availableProcessors();
     private static final int PROBE_LENGTH = NCPU >>> 1; //max length to probe for a worker to acquire before retrying
-    private static final int TOP_K = 32;
+    private static final int TOP_K = 16;
 
     private final Segment<E>[] segments;
     private final int mask;
@@ -150,6 +151,7 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
                             }
                         }
 
+                        Arrays.sort(elems, 0, index);
                         var newDa = new DeleteArray(elems, index);
                         E ours = (E) newDa.currentElem();
                         deleteArray = newDa;
