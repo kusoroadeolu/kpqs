@@ -66,6 +66,8 @@ public interface SortedList<E> {
                 buffer[offset(pIndex++)] = e;
                 res = added();
             } else {
+                //only fail if full
+                if (s == capacity && comparator.compare(e, buffer[offset(pIndex - 1)]) >= 0) return null;
                 long index = findInsertionPoint(e);
                 if (index == -1) return null; //failed to insert (e > buffer[size -1])
                 res = shiftRight(e, index);

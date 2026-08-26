@@ -70,8 +70,10 @@ class SegmentFields<E> extends SegmentLPad {
 
        // outer: for (;;) {
             E result;
-            if (insBuffer.size() == 0 && heapSize == 0) result = delBuffer.add(e);
-            else result = delBuffer.offer(e);
+            boolean insEmpty = insBuffer.size() == 0;
+            //both ins ahd heap empty
+            if (insEmpty && (heapSize == 0 || comparator.compare(e, heap[0]) < 0)) result = delBuffer.add(e); //must add if the del buffer isn't full
+            else result = delBuffer.offer(e); //will only add if it's smaller than the largest elem in the del buffer
 
 
             //Successfully added (not full), publish id in leader queue
@@ -113,7 +115,7 @@ class SegmentFields<E> extends SegmentLPad {
         if (result == null) return null;
 
 
-        if (delBuffer.isEmpty()) { //Keep elements in the delete buffer
+        if (delBuffer.isEmpty()) { //Try to keep elements in the delete buffer
             E e;
 
             while ((e = insBuffer.peek()) != null){

@@ -1,6 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import io.github.kusoroadeolu.cbs.rmq.KQueue;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
@@ -20,9 +21,9 @@ import java.util.concurrent.*;
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 15, time = 1)
-@Measurement(iterations = 20, time = 1)
-@Fork(value = 20, jvmArgs = {
+@Warmup(iterations = 10, time = 1)
+@Measurement(iterations = 15, time = 1)
+@Fork(value = 10, jvmArgs = {
         JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG
 })
 public class PhaseBench {
@@ -35,7 +36,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({"KQ"})
+    @Param({RPQFactory.KQ, RPQFactory.PBQ})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -55,11 +56,7 @@ public class PhaseBench {
         int producerCount =  workerCount;
         int consumerCount = workerCount;
 
-        queue = switch (type) {
-            case "KQ" -> new KQueue<>(BURST_TOTAL / workerCount); //per heap
-            case "PBQ" -> new PBQ<>(BURST_TOTAL); //Baseline priority blocking queue
-            default -> throw new RuntimeException();
-        };
+        queue = RPQFactory.createRPQ(type, 128_000);
 
         producers = new Producer[producerCount];
 

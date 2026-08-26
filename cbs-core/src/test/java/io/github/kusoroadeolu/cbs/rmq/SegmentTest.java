@@ -3,10 +3,7 @@ package io.github.kusoroadeolu.cbs.rmq;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,19 +40,16 @@ class SegmentTest {
         Segment<Integer> seg = newSegment(16);
         List<Integer> input = List.of(5, 3, 9, 1, 7);
         input.forEach(seg::add);
-        System.out.println(seg);
 
         List<Integer> out = new ArrayList<>();
         Integer v;
         while ((v = seg.poll()) != null) {
-            System.out.println(seg);
-            System.out.println();
             out.add(v);
         }
 
-        List<Integer> expected = new ArrayList<>(input);
+        List<Integer> expected = (new TreeSet<>(input))
+                .stream().toList();
 
-        Collections.sort(expected);
         assertEquals(expected, out);
     }
 
@@ -67,7 +61,7 @@ class SegmentTest {
         Random r = new Random(1234);
         List<Integer> input = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            int val = r.nextInt(1_000_000);
+            int val = r.nextInt(0,1_000_000);
             input.add(val);
             assertTrue(seg.add(val));
         }
