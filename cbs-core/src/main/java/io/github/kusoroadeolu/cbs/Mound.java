@@ -5,12 +5,26 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+* The mound, based on the paper "A Lock-Free, Array-Based Priority Queue", is a rooted tree of sorted lists
+* which aims at fast inserts under concurrent access. Now, while this is a sequential version,
+* the aim of me building this is to understand how the structure behaves before implementing it concurrently
+*
+* Notes:
+* Depth is zero index while insertion point is one indexed
+ * The max depth is fixed to avoid the mound deepening unboundedly
+* We avoid using a simple flat array as a heap to avoid allocating an array of 2^31 upfront, instead using
+* an array of arrays with each index in the 1D corresponding to the depth of the mound and each index in the 2D
+* corresponding to the actual insertion point
+*
+* @author kusoroadeolu
+ * */
 public class Mound<E> {
     final SegmentedArray<MoundNode> heap;
     final Random random;
     final Comparator<E> comparator;
-    static final int TRIES = 5;
-    int depth = 1;
+    static final int TRIES = 8;
+    int depth = 0;
 
     public Mound() {
         this.heap = new SegmentedArray<>(MoundNode::new);
@@ -21,7 +35,7 @@ public class Mound<E> {
     void put(E e) {
         var heap = this.heap;
         var cmp = comparator;
-        if (depth == 1) {
+        if (depth == 0) {
             var node = heap.get(depth, 1);
             E first = node.peek();
             if (compare(e, first, cmp) <= 0) node.add(e);
@@ -40,21 +54,23 @@ public class Mound<E> {
             int rand = randLeaf(origin, bound);
             var leaf = heap.get(depth, rand);
             if (compare(e, leaf.peek(), cmp) <= 0) { //found a suitable node
-                int index = binarySearch(e, rand);
-                heap.getI(level(index), index).add(e);
+                int heapIndex = binarySearch(e, rand);
+                int level = level(heapIndex);
+                var current = heap.get(level, heapIndex);
+                current.add(e);
                 return;
             }
         }
 
-        if (depth < 32) depth++;
+        if (depth < 31) depth++;
 
-        int index = binarySearch(e, randLeaf(origin(depth), bound(depth)));
-        heap.getI(level(index), index).add(e);
+        int heapIndex = binarySearch(e, randLeaf(origin(depth), bound(depth)));
+        heap.get(level(heapIndex), heapIndex).add(e);
     }
 
     E pop() {
         var heap = this.heap;
-        var first = heap.get(1, 1);
+        var first = heap.get(0, 1);
         E result = first.pop();
         int origin = origin(depth);
         int bound = bound(depth);
@@ -70,19 +86,17 @@ public class Mound<E> {
         int leftIndex = 2 * index;
         int rightIndex = leftIndex + 1;
         int childDepth = depth + 1;
-        var parent = heap.getI(depth, index);
-        var left = heap.getI(childDepth, leftIndex);
-        var right = heap.getI(childDepth, rightIndex);
+        var parent = heap.get(depth, index);
+        var left = heap.get(childDepth, leftIndex);
+        var right = heap.get(childDepth, rightIndex);
         var pList = parent.list;
 
         if (compare(parent.peek(), left.peek(), comparator) > 0 && compare(left.peek(), right.peek(), comparator) <= 0) {
-            var lList = left.list;
-            parent.list = lList;
+            parent.list = left.list;
             left.list = pList;
             moundify(leftIndex, childDepth ,origin, bound);
         } else if (compare(parent.peek(), right.peek(), comparator) > 0) {
-            var rList = right.list;
-            parent.list = rList;
+            parent.list = right.list;
             right.list = pList;
             moundify(rightIndex, childDepth ,origin, bound);
         }
@@ -92,8 +106,8 @@ public class Mound<E> {
 
     public String treeString() {
         StringBuilder sb = new StringBuilder();
-        int maxIndex = (1 << depth) - 1; // last valid index at current depth
-        buildTree(1, 1 ,maxIndex, "", "", sb);
+        int maxIndex = (1 << depth); // last valid index at current depth
+        buildTree(1, 0 ,maxIndex, "", "", sb);
         return sb.toString();
     }
 
@@ -129,16 +143,16 @@ public class Mound<E> {
     * start >> depth = 1
     * */
     int binarySearch(E elem, int start) {
-        int depth = this.depth - 1; //depth is one-indexed, below code only works when depth is zero-indexed
+        int depth = this.depth; //depth is one-indexed, below code only works when depth is zero-indexed
         //low = 1 (pos), high = start (pos)
         int low = 0, high = depth;
         var heap = this.heap;
         var comparator = this.comparator;
         while (low < high) {
             int mid = (low + high) >>> 1 ;
-            int level = depth - mid; //we need to invert mid here so we can act as if start >> 0 = 1 (the root of the heap)
+            int level = depth - mid; //we need to invert mid here so we can assume start >> 0 = 1 (the root of the heap)
             int heapIndex = start >> level; //actual index in array to check
-            var leaf = heap.getI(mid, heapIndex); //pass mid through as mid already fulfills the start >> 0 precondition
+            var leaf = heap.get(mid, heapIndex); //pass mid through as mid already fulfills the start >> 0 precondition
             int cmp = compare(elem, leaf.peek(), comparator);
 
             if (cmp > 0) low = mid + 1;
@@ -183,10 +197,12 @@ public class Mound<E> {
     }
 
     static int origin(int depth) {
+        depth++;
         return (int) Math.pow(2, depth - 1);
     }
 
     static int bound(int depth) {
+        depth++;
         return (int) Math.pow(2, depth);
     }
 
@@ -295,26 +311,21 @@ public class Mound<E> {
             }
         }
 
+        //depth - level (indexed by zero)
         E get(int level, int heapIndex) { //heap index -> logical binary heap index (indexed by 1)
             assert level >= 0;
-            assert level <= MAX_DEPTH;
+            assert level < MAX_DEPTH;
 
 
-            level = level - 1; //level should be indexed by zero
             int size = Math.powExact(2, level);
             var a = array[level];
-            int offset = heapIndex - (1 << level); //convert heap index to the level's array offset
+            int offset = heapIndex - (1 << level); //convert heap index to this level's array offset
             if (a == null) {
                 a = spawner.apply(size);
                 array[level] = a;
             }
 
             return a.get(offset);
-        }
-
-        //depth - level
-        E getI(int level, int heapIndex) { //heap index -> logical binary heap index (indexed by 1)
-            return get(level + 1, heapIndex);
         }
 
     }
