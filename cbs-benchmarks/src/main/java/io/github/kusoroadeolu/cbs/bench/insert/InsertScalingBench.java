@@ -1,10 +1,16 @@
 package io.github.kusoroadeolu.cbs.bench.insert;
 
+import io.github.kusoroadeolu.cbs.ConcurrentMound;
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
+import io.github.kusoroadeolu.cbs.bench.MixedThrptBench;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
+import org.openjdk.jmh.runner.RunnerException;
+import org.openjdk.jmh.runner.options.Options;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -16,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 15, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class InsertScalingBench {
-    private RPQ<Integer> queue;
+    private ConcurrentMound<Integer> queue;
 
     @Param({RPQFactory.KQ})
     private String type;
@@ -26,50 +32,61 @@ public class InsertScalingBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = RPQFactory.createRPQ(type, 128_000);
+       // queue = RPQFactory.createRPQ(type, 128_000);
+        queue = new ConcurrentMound<>(null);
     }
 
 
 
-    @TearDown(Level.Iteration)
-    public void emptyQ() {
-        synchronized (queue)
-        {
-            queue.clear();
-        }
-    }
+//    @TearDown(Level.Iteration)
+//    public void emptyQ() {
+//        synchronized (queue)
+//        {
+//            queue.clear();
+//        }
+//    }
 
     @Threads(8)
     @Benchmark
     public void eight_full_insert(Blackhole bh) {
-        boolean offer = queue.offer(nextInt());
+        boolean offer = queue.add(nextInt());
         bh.consume(offer);
     }
-
-    @Threads(6)
-    @Benchmark
-    public void six_full_insert(Blackhole bh) {
-        boolean offer = queue.offer(nextInt());
-        bh.consume(offer);
-
-    }
-
-    @Threads(4)
-    @Benchmark
-    public void four_full_insert(Blackhole bh) {
-        boolean offer = queue.offer(nextInt());
-        bh.consume(offer);
-    }
-
-    @Threads(2)
-    @Benchmark
-    public void two_full_insert(Blackhole bh) {
-        boolean offer = queue.offer(nextInt());
-        bh.consume(offer);
-    }
+//
+//    @Threads(6)
+//    @Benchmark
+//    public void six_full_insert(Blackhole bh) {
+//        boolean offer = queue.offer(nextInt());
+//        bh.consume(offer);
+//
+//    }
+//
+//    @Threads(4)
+//    @Benchmark
+//    public void four_full_insert(Blackhole bh) {
+//        boolean offer = queue.offer(nextInt());
+//        bh.consume(offer);
+//    }
+//
+//    @Threads(2)
+//    @Benchmark
+//    public void two_full_insert(Blackhole bh) {
+//        boolean offer = queue.offer(nextInt());
+//        bh.consume(offer);
+//    }
 
     int nextInt() {
         return ThreadLocalRandom.current().nextInt(0, RANGE);
+    }
+
+    static class BenchRunner {
+        static void main() throws RunnerException {
+            Options options = new OptionsBuilder()
+                    .include(InsertScalingBench.class.getSimpleName())
+                    .build();
+            new org.openjdk.jmh.runner.Runner(options).run();
+
+        }
     }
 }
 

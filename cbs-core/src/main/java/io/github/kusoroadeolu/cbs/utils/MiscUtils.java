@@ -1,5 +1,7 @@
 package io.github.kusoroadeolu.cbs.utils;
 
+import java.util.Comparator;
+
 public class MiscUtils {
     public static final int MAX_POW2 = 1 << 30;
 
@@ -34,6 +36,11 @@ public class MiscUtils {
         r ^= r >>> 7;
         r ^= r << 17;;
         return r;
+    }
+
+    public static <E> Comparator<? super E> comparator(Comparator<? super E> cmp) {
+        if (cmp == null) return (a, b) -> ((Comparable<? super E>) a).compareTo(b);
+        return cmp;
     }
 
 

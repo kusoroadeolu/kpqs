@@ -1,5 +1,6 @@
 package io.github.kusoroadeolu.cbs.bench;
 
+import io.github.kusoroadeolu.cbs.ConcurrentMound;
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
@@ -19,9 +20,8 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class MixedThrptBench {
-    private RPQ<Integer> queue;
+    private ConcurrentMound<Integer> queue;
 
-    @Param({RPQFactory.KQ, RPQFactory.PBQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -29,17 +29,18 @@ public class MixedThrptBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = RPQFactory.createRPQ(type, 128_000);
+        queue = new ConcurrentMound<>(null);
+        for (int i = 0; i < 100_000; ++i) queue.add(ThreadLocalRandom.current().nextInt());
     }
 
 
-    @TearDown(Level.Iteration)
-    public void emptyQ() {
-        synchronized (queue)
-        {
-            queue.clear();
-        }
-    }
+//    @TearDown(Level.Iteration)
+//    public void emptyQ() {
+//        synchronized (queue)
+//        {
+//            queue.clear();
+//        }
+//    }
 
 
     @AuxCounters(AuxCounters.Type.OPERATIONS)
@@ -55,37 +56,37 @@ public class MixedThrptBench {
         }
     }
 
-    @Threads(8)
-    @Benchmark
-    public void full_insert(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
-    }
+//    @Threads(8)
+//    @Benchmark
+//    public void full_insert(Blackhole bh) {
+//        bh.consume(queue.add(nextInt()));
+//    }
 
-    @Group("ratio_75_25")
-    @GroupThreads(6)
-    @Benchmark
-    public void seventy_five_add(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
-    }
-
-    @Group("ratio_75_25")
-    @GroupThreads(2)
-    @Benchmark
-    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
-        Integer result = queue.poll();
-        bh.consume(result);
-        if (result == null) {
-            counters.pollMiss++;
-        } else {
-            counters.pollHit++;
-        }
-    }
+//    @Group("ratio_75_25")
+//    @GroupThreads(6)
+//    @Benchmark
+//    public void seventy_five_add(Blackhole bh) {
+//        bh.consume(queue.add(nextInt()));
+//    }
+//
+//    @Group("ratio_75_25")
+//    @GroupThreads(2)
+//    @Benchmark
+//    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
+//        Integer result = queue.poll();
+//        bh.consume(result);
+//        if (result == null) {
+//            counters.pollMiss++;
+//        } else {
+//            counters.pollHit++;
+//        }
+//    }
 
     @Group("ratio_50_50")
     @GroupThreads(4)
     @Benchmark
     public void fifty_add(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
+       bh.consume(queue.add(nextInt()));
     }
 
     @Group("ratio_50_50")

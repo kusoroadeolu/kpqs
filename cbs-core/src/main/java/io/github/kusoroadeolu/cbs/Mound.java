@@ -1,6 +1,8 @@
 package io.github.kusoroadeolu.cbs;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -25,6 +27,8 @@ public class Mound<E> {
     final Comparator<E> comparator;
     static final int TRIES = 8;
     int depth = 0;
+    static final int MAX_DEPTH = 4;
+    static final int M_MASK = (MAX_DEPTH - 1);
 
     public Mound() {
         this.heap = new SegmentedArray<>(MoundNode::new);
@@ -44,6 +48,7 @@ public class Mound<E> {
                 int index = randLeaf(origin(depth), bound(depth));
                 heap.get(depth, index).add(e);
             }
+
             return;
         }
 
@@ -62,7 +67,7 @@ public class Mound<E> {
             }
         }
 
-        if (depth < 31) depth++;
+        if (depth != (MAX_DEPTH - 1)) depth++;
 
         int heapIndex = binarySearch(e, randLeaf(origin(depth), bound(depth)));
         heap.get(level(heapIndex), heapIndex).add(e);
@@ -74,12 +79,42 @@ public class Mound<E> {
         E result = first.pop();
         int origin = origin(depth);
         int bound = bound(depth);
-        moundify(1, 0 ,origin, bound);
+        itrMoundify(1, 0 ,origin, bound);
         return result;
     }
 
+    void itrMoundify(int index, int depth, int origin, int bound) {
+        var heap = this.heap;
+
+        for (;;) {
+            if (index >= origin && index < bound) return;
+
+            int leftIndex = 2 * index;
+            int rightIndex = leftIndex + 1;
+            int childDepth = depth + 1;
+            var parent = heap.get(depth, index);
+            var left = heap.get(childDepth, leftIndex);
+            var right = heap.get(childDepth, rightIndex);
+            var pList = parent.list;
+
+            if (compare(parent.peek(), left.peek(), comparator) > 0 && compare(left.peek(), right.peek(), comparator) <= 0) {
+                parent.list = left.list;
+                left.list = pList;
+                ++depth;
+                index = leftIndex;
+            } else if (compare(parent.peek(), right.peek(), comparator) > 0) {
+                parent.list = right.list;
+                right.list = pList;
+                ++depth;
+                index = rightIndex;
+            } else break;
+        }
+
+
+    }
+
     void moundify(int index, final int depth ,int origin, int bound) {
-        if (index >= origin && index < bound) return; //bound is offset by one to accommodate java's rand, hence <
+        if (index >= origin && index < bound) return; //bound is offset by one to accommodate java's rand inclusion, hence < rather than <=
 
         var heap = this.heap;
 
@@ -150,8 +185,8 @@ public class Mound<E> {
         var comparator = this.comparator;
         while (low < high) {
             int mid = (low + high) >>> 1 ;
-            int level = depth - mid; //we need to invert mid here so we can assume start >> 0 = 1 (the root of the heap)
-            int heapIndex = start >> level; //actual index in array to check
+            int normalizedLevel = depth - mid; //we need to invert mid here so we can assume start >> 0 = 1 (the root of the heap)
+            int heapIndex = start >> normalizedLevel; //actual index in array to check
             var leaf = heap.get(mid, heapIndex); //pass mid through as mid already fulfills the start >> 0 precondition
             int cmp = compare(elem, leaf.peek(), comparator);
 
@@ -164,28 +199,6 @@ public class Mound<E> {
     }
 
 
-//    int linearSearch(E elem, int start) {
-//        assert start > 1;
-//        int depth = this.depth - 1;
-//        int rank = depth; //reversed, recall  15 >> 0 = 15
-//        var heap = this.heap;
-//        var comparator = this.comparator;
-//        //walk from bottom upwards
-//        while (rank > 0) {
-//            int actual = (depth - rank);
-//            int parent = actual + 1;
-//            var node = heap.get(start >> actual);
-//            var pNode = heap.get(start >> parent);
-//
-//            int cmp = compare(elem, node.peek(), comparator);
-//            int pcmp = compare(elem, pNode.peek(), comparator);
-//            if (cmp <= 0 && pcmp >= 0) return start >> actual;
-//            rank = rank - 1;
-//        }
-//
-//        return 1;
-//    }
-
     static <E>int compare(E e, E other, Comparator<E> comparator) {
         if (e == null) return 1;
         else if (other == null) return -1;
@@ -196,14 +209,18 @@ public class Mound<E> {
         return random.nextInt(origin, bound);
     }
 
+    //since depth is zero indexed we need to adjust origin and bound
+    /**
+     * For a one indexed depth
+     * origin = 2 ^ (depth - 1)
+     * bound = (2 ^ depth) - 1, assuming bound is inclusive
+     * */
     static int origin(int depth) {
-        depth++;
-        return (int) Math.pow(2, depth - 1);
+        return (int) Math.pow(2, depth);
     }
 
     static int bound(int depth) {
-        depth++;
-        return (int) Math.pow(2, depth);
+        return (int) Math.pow(2, (depth + 1));
     }
 
 
@@ -298,7 +315,6 @@ public class Mound<E> {
 
     static class SegmentedArray<E> {
         final ZeroIndexedArray<E>[] array;
-        static final int MAX_DEPTH = 32;
         static final int INITIAL_DEPTH = 3;
         final Function<Integer, ZeroIndexedArray<E>> spawner;
 
@@ -349,16 +365,6 @@ public class Mound<E> {
         public T get(int index) {
             return array[index];
         }
-
-        public T getFirst() {
-            return get(0);
-        }
-
-        public void put(T t, int index) {
-            int actual = index - 1;
-            if (actual < 0 || actual >= capacity) throw new IllegalArgumentException();
-            array[actual] = t;
-        }
     }
 
     @Override
@@ -366,40 +372,65 @@ public class Mound<E> {
         return Arrays.toString(heap.array);
     }
 
+
     static void main() {
         Mound<Integer> m = new Mound<>();
         var r = ThreadLocalRandom.current() ;
-        for (int i = 0; i < 32; ++i) {
-            var val = r.nextInt(0, 100);
+        for (int i = 0; i < 1500; ++i) {
+            var val = r.nextInt(0, 10000);
             m.put(val);
         }
+
 
         System.out.println(m.treeString());
         System.out.println();
 
-        var list = new ArrayList<Integer>();
-        Integer res;
-        while ((res = m.pop()) != null) {
-            list.add(res);
-        }
-        System.out.println(list);
-
-//        for (int i = 0; i < 32; ++i) {
-//            var val = r.nextInt(0, 100);
-//            m.put(val);
-//        }
+        System.out.println("Depth: " + m.depth);
 //
-//        System.out.println(m.treeString());
-//        System.out.println();
-
-//        System.out.println(m);
-//        System.out.println();
-//        System.out.println(m.treeString());
-
+//        var list = new ArrayList<Integer>();
+//        Integer res;
+//        while ((res = m.pop()) != null) {
+//            list.add(res);
+//        }
+//        System.out.println(list);
+//        System.out.println("Size: " + list.size());
+//        System.out.println("Depth: " + m.depth);
     }
 
-    // 0 - 1
-    //1 - 2, 3
-    //2 - 4,5,6,7
-    //3 - 8, 9, 10, 11, 12, 13, 14, 15
+    //Some interleaving reasoning for my concurrent binary search (when i build the concurrent mound) just to wonder if indices can move out of bounds (hoepfully not)
+        /*
+         * 1 - 10    (0 1 2 3 4)
+         * 2
+         * 4
+         * 6
+         * 7
+          We want to insert 3
+          *
+          * first binary search itr
+          *  low = 0, high = 2 , mid = 1
+          *
+          * after a concurrent delete min (in progress), we could see this state
+          * 1     2     2
+          * 10 or 2 or  10 | the more interesting one is when we have 2 as our mid (1)
+          * 4     4     4
+          * 6     6     6
+          * 7     7     7
+          *
+          * so ideally to handle swaps
+          * we should swap
+          * parent to child
+          * then child to parent
+          *
+          * low = 2, high = 2
+          * rank to insert at will be 2, we will still validate it under the lock so this seems harmless
+          *
+          * in a normal resting state after delete min we should see smth like this
+          *
+          * 2
+          * 4
+          * 6
+          * x  bottom two don't matter as we're dealing with ranks 0 - 2
+          * x
+         * */
+
 }

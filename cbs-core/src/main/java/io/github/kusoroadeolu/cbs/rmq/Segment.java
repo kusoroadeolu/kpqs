@@ -253,11 +253,6 @@ class SegmentFields<E> extends SegmentLPad {
     }
 
 
-    static <E> Comparator<? super E> comparator(Comparator<? super E> cmp) {
-        if (cmp == null) return (a, b) -> ((Comparable<? super E>) a).compareTo(b);
-        return cmp;
-    }
-
     static <E>void siftUp(int k, E x, E[] buffer, Comparator<? super E> comparator) {
         while (k > 0) {
             int parent = (k - 1) >>> 1;
