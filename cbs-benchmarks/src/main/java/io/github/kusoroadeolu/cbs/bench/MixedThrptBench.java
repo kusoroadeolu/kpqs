@@ -24,13 +24,13 @@ public class MixedThrptBench {
 
     private String type;
 
-    final static int RANGE = 1_000_000;
+    final static int RANGE = 10_000_000;
 
 
     @Setup(Level.Trial)
     public void setup() {
         queue = new ConcurrentMound<>(null);
-        for (int i = 0; i < 100_000; ++i) queue.add(ThreadLocalRandom.current().nextInt());
+        for (int i = 0; i < 1_000_000; ++i) queue.add(ThreadLocalRandom.current().nextInt(0, RANGE));
     }
 
 

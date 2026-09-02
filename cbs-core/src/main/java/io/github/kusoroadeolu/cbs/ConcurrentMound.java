@@ -105,7 +105,7 @@ public class ConcurrentMound<E> {
                 assert level > 0;
                 var parent = heap.get(level - 1, parentIndex);
 
-                //parent should be >= e
+                //parent should be >= e, avoid the acquire read unless needed
                 if (parent == null || compare(e, parent.laMax(), cmp) < 0 || parent.laDeleted()) continue;
                 parent.lock();
                 try {
@@ -132,7 +132,6 @@ public class ConcurrentMound<E> {
                                 curr.add(e, cmp);
                                 return true;
                             }
-
                         }finally {
                             curr.unlock();
                         }
@@ -152,6 +151,7 @@ public class ConcurrentMound<E> {
         var first = heap.get(0, 1);
         if (first == null || first.laDeleted()) return null;
         first.lock();
+
         if (first.lpDeleted()) {
             assert first.poll() == null;
             first.unlock();

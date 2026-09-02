@@ -15,7 +15,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-@BenchmarkMode(Mode.Throughput)
+@BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, time = 1)
@@ -27,13 +27,14 @@ public class InsertScalingBench {
     @Param({RPQFactory.KQ})
     private String type;
 
-    final static int RANGE = 1_000_000;
+    final static int RANGE = 10_000_000;
 
 
     @Setup(Level.Trial)
     public void setup() {
        // queue = RPQFactory.createRPQ(type, 128_000);
         queue = new ConcurrentMound<>(null);
+        for (int i = 0; i < 1_000_00; ++i) queue.add(ThreadLocalRandom.current().nextInt(0, RANGE));
     }
 
 
