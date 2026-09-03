@@ -1,6 +1,6 @@
 package io.github.kusoroadeolu.cbs;
 
-public interface RPQ<E> {
+public interface PQ<E> {
     boolean offer(E e);
 
     E poll();

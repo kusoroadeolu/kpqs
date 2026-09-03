@@ -1,8 +1,10 @@
 package io.github.kusoroadeolu.cbs.bench.insert;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.ConcurrentMound;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
+import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -18,9 +20,9 @@ import java.util.concurrent.TimeUnit;
 
 //Monotonic values with some random jitter
 public class InsertScalingJitterBench {
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
 
-    @Param({RPQFactory.KQ})
+    @Param({PQFactory.MOUNDS})
     private String type;
 
     final static int JITTER_RANGE = 100;
@@ -28,7 +30,7 @@ public class InsertScalingJitterBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = RPQFactory.createRPQ(type, 128_000);
+        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
     }
 
 
@@ -37,7 +39,8 @@ public class InsertScalingJitterBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
+            else queue.clear();
         }
     }
 

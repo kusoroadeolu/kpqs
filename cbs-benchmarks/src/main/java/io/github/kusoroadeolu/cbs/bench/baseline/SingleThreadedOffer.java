@@ -1,9 +1,9 @@
 package io.github.kusoroadeolu.cbs.bench.baseline;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
-import io.github.kusoroadeolu.cbs.rmq.KQueue;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
+import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -17,18 +17,18 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class SingleThreadedOffer {
     private static final int OPS = 1 << 15;
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
     private volatile boolean dontUnroll = true;
 
     final static int RANGE = 1_000_000;
 
-    @Param({RPQFactory.KQ, RPQFactory.PBQ})
+    @Param({PQFactory.MOUNDS, PQFactory.PBQ})
     public String type;
 
 
     @Setup
     public void setup() {
-        queue = RPQFactory.createRPQ(type, OPS * 2);
+        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
     }
 
     @TearDown(Level.Invocation)
@@ -46,7 +46,7 @@ public class SingleThreadedOffer {
     }
 
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-    public boolean offer(RPQ<Integer> queue, Integer i) {
+    public boolean offer(PQ<Integer> queue, Integer i) {
         return queue.offer(i);
     }
 

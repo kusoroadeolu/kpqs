@@ -1,9 +1,9 @@
 package io.github.kusoroadeolu.cbs.bench.baseline;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.PhaseBench;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
+import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
 import org.openjdk.jmh.runner.RunnerException;
@@ -21,17 +21,17 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class SingleThreadedPoll {
     private static final int OPS = 1 << 15;
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
     private volatile boolean dontUnroll = true;
 
 
-    @Param({RPQFactory.KQ})
+    @Param({PQFactory.MOUNDS, PQFactory.PBQ})
     public String type;
 
 
     @Setup
     public void setup() {
-        queue = RPQFactory.createRPQ(type, OPS * 2);
+        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
     }
 
     @Setup(Level.Invocation)
@@ -51,7 +51,7 @@ public class SingleThreadedPoll {
     }
 
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-    public int poll(RPQ<Integer> queue) {
+    public int poll(PQ<Integer> queue) {
         return queue.poll();
     }
 

@@ -44,6 +44,9 @@ public class MiscUtils {
     }
 
 
+    public static <E> Comparator<E> defaultCmp() {
+        return (Comparator<E>) Comparator.naturalOrder();
+    }
 
     public static int offset(long index, long mask) {
         return (int) (index & mask);

@@ -14,8 +14,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.comparator;
 
-public class ConcurrentMound<E> {
-    static final int INITIAL_DEPTH = 3;
+public class ConcurrentMound<E> implements PQ<E> {
+    static final int INITIALIZED_ARRAY_DEPTH = 3;
     static final int MAX_DEPTH = 32;
     static final int MAX_TRIES = 8;
 
@@ -29,12 +29,19 @@ public class ConcurrentMound<E> {
         this.comparator = comparator(cmp);
     }
 
+    public int depth() {
+        return depth + 1;
+    }
+
 
     //Note: tries is only incremented when we find an ins point where
-    public boolean add(E e) {
+    public boolean offer(E e) {
         int depth = this.depth;
         var heap = this.heap;
         var cmp = this.comparator;
+
+        //This branch is to handle the case where depth is 0 but we might not be able to insert into the first level
+        //The other branch a thread will just spin uselessly for 8
         if (depth == 0) {
             for (;;) {
                 var node = heap.get(0, 1); //volatile read
@@ -67,17 +74,19 @@ public class ConcurrentMound<E> {
 
         int tries = 0;
         int origin = origin(depth), bound = bound(depth);
+        var startIndex = ThreadLocalRandom.current().nextInt(origin, bound);
         for(;;) {
-            var startIndex = ThreadLocalRandom.current().nextInt(origin, bound);
             var start = heap.get(depth, startIndex);
             if (compareMound(e, start , cmp) > 0) {
-                if (++tries == MAX_TRIES) {
+
+                if (++tries >= MAX_TRIES) {
                     depth = tryIncreaseDepth(heap, depth);
                     origin = origin(depth);
                     bound = bound(depth);
                     tries = 0;
                 }
 
+                startIndex = ThreadLocalRandom.current().nextInt(origin, bound);
                 continue;
             }
 
@@ -117,11 +126,7 @@ public class ConcurrentMound<E> {
                         return true;
                     } else if (curr.laDeleted()) { //if curr is deleted, wait till the deleter nulls out its slot, then insert a new mound node
                         var node = new MoundNode<>(e);
-                        if (!heap.casOffset(level, offset, curr, node)) {
-                            boolean casd = heap.casOffset(level, offset, null, node);
-                            assert casd; //if we fail curr should be null
-                        }
-
+                        assert heap.casOffset(level, offset, curr, node) || heap.casOffset(level, offset, null, node);
                         return true;
                     } else {
                         // e <= curr
@@ -164,6 +169,54 @@ public class ConcurrentMound<E> {
         return val;
     }
 
+    @Override
+    public E peek() {
+        var heap = this.heap;
+        var first = heap.get(0, 1);
+        if (first == null || first.laDeleted()) return null;
+        else return first.laMax();
+    }
+
+
+
+    @Override
+    public int size() {
+        return 0;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return false;
+    }
+
+    @Override
+    public void clear() {
+        var heap = this.heap;
+        while (true) {
+            var first = heap.get(0, 1);
+            if (first == null || first.laDeleted()) return;
+            first.lock();
+
+            if (first.lpDeleted()) {
+                assert first.poll() == null;
+                first.unlock();
+                return;
+            }
+
+            first.clear();
+            moundify(heap, first);
+        }
+    }
+
+    //only for use in jmh teardown benchmarks
+    public void clearUnsafe() {
+        var heap = this.heap;
+        for (int level = 0; level < depth; ++level) {
+            var a = heap.lvArray(level);
+            heap.casArray(level, a, new ZeroIndexedArray<>(1 << level));
+        }
+    }
+
     void moundify(SegmentedArray<MoundNode<E>> heap, MoundNode<E> start) {
         MoundNode<E> parent = start;
         int parentIndex = 1;
@@ -183,41 +236,39 @@ public class ConcurrentMound<E> {
             var rightIndex = leftIndex + 1;
             var left = heap.get(childLevel, leftIndex);
             var right = heap.get(childLevel, rightIndex);
+
             boolean leftLocked = left != null;
             boolean rightLocked = right != null;
 
             if (leftLocked) left.lock();
-
             if (rightLocked) right.lock();
-
             if (!leftLocked && !rightLocked) break;
 
             var parentQueue = parent.queue;
 
-            if (leftLocked && compare(parent.peek(), left.peek(), cmp) > 0 && compareMoundPlain(left.peek(), right, cmp) <= 0) {
+            if (leftLocked && compare(parent.peek(), left.lpMax(), cmp) > 0 && compareMoundPlain(left.peek(), right, cmp) <= 0) {
+                if (rightLocked) right.unlock();
                 parent.queue = left.queue;
                 left.queue = parentQueue;
 
                 parent.srMax(parent.peek());
                 left.srMax(left.peek());
 
-                if (rightLocked) right.unlock();
                 parent.unlock();
-
 
                 parent = left;
                 parentIndex = leftIndex;
                 parentLevel = childLevel;
-            } else if (rightLocked && compare(parent.peek(), right.peek(), cmp) > 0) {
-                parent.queue = right.queue;
+            } else if (compareMoundPlain(parent.peek(), right, cmp) > 0) {
+                if (leftLocked) left.unlock();
+
+                parent.queue = right.queue; //can't NPE
                 right.queue = parentQueue;
 
                 parent.srMax(parent.peek());
                 right.srMax(right.peek());
 
-                if (leftLocked) left.unlock();
                 parent.unlock();
-
 
                 parent = right;
                 parentIndex = rightIndex;
@@ -226,7 +277,7 @@ public class ConcurrentMound<E> {
                 if (leftLocked) left.unlock();
                 if (rightLocked) right.unlock();
                 break;
-            };
+            }
         }
 
 
@@ -242,7 +293,7 @@ public class ConcurrentMound<E> {
 
     int tryIncreaseDepth(SegmentedArray<MoundNode<E>> heap, int depth) {
         int newDepth = depth + 1;
-        if (newDepth >= INITIAL_DEPTH) {
+        if (newDepth >= INITIALIZED_ARRAY_DEPTH) {
             //check then optimistically initialize
             //we want to initialize then attempt to increase depth to avoid the issue where depth is increased but there's no array at that level
             var absent = heap.lvArray(newDepth);
@@ -273,7 +324,6 @@ public class ConcurrentMound<E> {
     }
 
     int binarySearch(SegmentedArray<MoundNode<E>> heap, E elem, int start, int depth) {
-        int totalTries = 0;
         //low = 1 (pos), high = start (pos)
         int low = 0, high = depth;
         var comparator = this.comparator;
@@ -295,11 +345,12 @@ public class ConcurrentMound<E> {
         private static final VarHandle DELETED = VHUtils.fieldVarHandle(MethodHandles.lookup(), MoundNode.class, "deleted", boolean.class);
         volatile E max;
         volatile boolean deleted;
+        private static final PriorityQueue<?> EMPTY = new PriorityQueue<>();
         PriorityQueue<E> queue;
         final Lock lock;
 
         public MoundNode(E e) {
-            lock = new ReentrantLock();
+            lock = new SpinLock();
             lock.lock();
             try {
                 this.queue = new PriorityQueue<>();
@@ -333,6 +384,10 @@ public class ConcurrentMound<E> {
             return queue.peek();
         }
 
+        void clear() {
+            queue = (PriorityQueue<E>) EMPTY;
+        }
+
 
         E lpMax() {
             return (E) MAX.get(this);
@@ -364,7 +419,12 @@ public class ConcurrentMound<E> {
 
         @Override
         public String toString() {
-            return queue.toString();
+            lock();
+            try {
+                return queue.toString();
+            }finally {
+                unlock();
+            }
         }
 
     }
@@ -375,7 +435,7 @@ public class ConcurrentMound<E> {
 
         public SegmentedArray() {
             this.array = new AtomicReferenceArray<>(MAX_DEPTH);
-            for (int i = 0; i < INITIAL_DEPTH; ++i) {
+            for (int i = 0; i < INITIALIZED_ARRAY_DEPTH; ++i) {
                 int cap = (1 << i);
                 array.setRelease(i, new ZeroIndexedArray<>(cap));
             }
@@ -547,7 +607,7 @@ public class ConcurrentMound<E> {
         var r = ThreadLocalRandom.current() ;
         for (int i = 0; i < 1500; ++i) {
             var val = r.nextInt(0, 10000);
-            m.add(val);
+            m.offer(val);
         }
 
         System.out.println(m.treeString());

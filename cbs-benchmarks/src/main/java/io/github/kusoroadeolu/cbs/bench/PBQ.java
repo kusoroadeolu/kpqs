@@ -1,15 +1,20 @@
 package io.github.kusoroadeolu.cbs.bench;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 
+import java.util.Comparator;
 import java.util.concurrent.PriorityBlockingQueue;
 
-public class PBQ<E> implements RPQ<E> {
+public class PBQ<E> implements PQ<E> {
 
     private final PriorityBlockingQueue<E> pq;
 
     public PBQ(int initialCapacity) {
         this.pq = new PriorityBlockingQueue<>(initialCapacity);
+    }
+
+    public PBQ(int cap, Comparator<E> cmp) {
+        this.pq = new PriorityBlockingQueue<>(cap, cmp);
     }
 
     public PBQ() {
