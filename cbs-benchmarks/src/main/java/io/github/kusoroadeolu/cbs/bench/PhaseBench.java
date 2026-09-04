@@ -240,11 +240,11 @@ public class PhaseBench {
 }
 
 /*
-╭ io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ─╮
-│  ConsumerProducerThreadCount Type Score    Error     Unit      │
-│  --------------------------- ---- -------- --------- -----     │
-│  8                           KQ   2081.842 ± 317.353 us/op     │
-│  8                           PBQ  1217.208 ± 90.112  us/op     │
-╰────────────────────────────────────────────────────────────────╯
+╭──────── io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ────────╮
+│  ConsumerProducerThreadCount Type                  Score    Error      Unit   │
+│  --------------------------- --------------------- -------- ---------- -----  │
+│  8                           Mounds                9826.886 ± 1378.484 us/op  │
+│  8                           PriorityBlockingQueue 1463.452 ± 78.977   us/op  │
+╰───────────────────────────────────────────────────────────────────────────────╯
 * */
 
