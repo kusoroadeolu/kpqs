@@ -95,52 +95,28 @@ public class InsertScalingJitterBench {
 }
 
 /*
-* ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
-│  Type                  Score  Error   Unit                                          │
-│  --------------------- ------ ------- ------                                        │
-│  PriorityBlockingQueue 17.283 ± 0.949 ops/us                                        │
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
+│  Type   Score Error   Unit                                                          │
+│  ------ ----- ------- ------                                                        │
+│  Mounds 5.207 ± 0.431 ops/us                                                        │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
-│  Type                  Score  Error   Unit                                         │
-│  --------------------- ------ ------- ------                                       │
-│  PriorityBlockingQueue 18.221 ± 0.874 ops/us                                       │
+│  Type   Score Error   Unit                                                         │
+│  ------ ----- ------- ------                                                       │
+│  Mounds 4.815 ± 0.331 ops/us                                                       │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
-│  Type                  Score  Error   Unit                                        │
-│  --------------------- ------ ------- ------                                      │
-│  PriorityBlockingQueue 17.343 ± 0.884 ops/us                                      │
+│  Type   Score Error   Unit                                                        │
+│  ------ ----- ------- ------                                                      │
+│  Mounds 5.057 ± 0.338 ops/us                                                      │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
-│  Type                  Score  Error   Unit                                        │
-│  --------------------- ------ ------- ------                                      │
-│  PriorityBlockingQueue 13.740 ± 0.488 ops/us                                      │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-*
-* ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
-│  Type   Score  Error   Unit                                                         │
-│  ------ ------ ------- ------                                                       │
-│  KQueue 39.887 ± 2.022 ops/us                                                       │
-╰─────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
-│  Type   Score  Error   Unit                                                        │
-│  ------ ------ ------- ------                                                      │
-│  KQueue 35.239 ± 2.091 ops/us                                                      │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
-│  Type   Score  Error   Unit                                                       │
-│  ------ ------ ------- ------                                                     │
-│  KQueue 38.337 ± 2.061 ops/us                                                     │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
-│  Type   Score  Error   Unit                                                       │
-│  ------ ------ ------- ------                                                     │
-│  KQueue 27.676 ± 1.360 ops/us                                                     │
+│  Type   Score Error   Unit                                                        │
+│  ------ ----- ------- ------                                                      │
+│  Mounds 3.355 ± 0.208 ops/us                                                      │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 *

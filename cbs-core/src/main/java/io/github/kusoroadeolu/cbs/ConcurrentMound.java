@@ -19,7 +19,7 @@ import static io.github.kusoroadeolu.cbs.utils.MiscUtils.comparator;
 public class ConcurrentMound<E> implements PQ<E> {
     static final int INITIALIZED_ARRAY_DEPTH = 3;
     static final int MAX_DEPTH = 32;
-    static final int MAX_TRIES = 8;
+    static final int MAX_TRIES = 16;
 
     final SegmentedArray<MoundNode<E>> heap;
     final Comparator<? super E> comparator;
@@ -41,9 +41,10 @@ public class ConcurrentMound<E> implements PQ<E> {
         int depth = this.depth;
         var heap = this.heap;
         var cmp = this.comparator;
+        var gen = ThreadLocalRandom.current();
 
-        //This branch is to handle the case where depth is 0 but we might not be able to insert into the first level
-        //The other branch a thread will just spin uselessly for 8
+        //This branch is to handle the case where depth is 0, but we might not be able to insert into the first level
+        //If this branch didn't exist a thread will just spin uselessly n times before trying to increase the depth of the list
         if (depth == 0) {
             for (;;) {
                 var node = heap.get(0, 1); //volatile read
@@ -76,11 +77,10 @@ public class ConcurrentMound<E> implements PQ<E> {
 
         int tries = 0;
         int origin = origin(depth), bound = bound(depth);
-        var startIndex = ThreadLocalRandom.current().nextInt(origin, bound);
+        var startIndex = gen.nextInt(origin, bound);
         for(;;) {
             var start = heap.get(depth, startIndex);
             if (compareMound(e, start , cmp) > 0) {
-
                 if (++tries >= MAX_TRIES) {
                     depth = tryIncreaseDepth(heap, depth);
                     origin = origin(depth);
@@ -118,9 +118,11 @@ public class ConcurrentMound<E> implements PQ<E> {
 
                 //parent should be >= e, avoid the acquire read unless needed
                 if (parent == null || compare(e, parent.laMax(), cmp) < 0 || parent.laDeleted()) continue;
+
                 parent.lock();
                 try {
                     if (parent.lpDeleted() || compare(e, parent.lpMax(), cmp) < 0) continue;
+
                     int offset = offset(heapIndex, level);
                     var curr = heap.getOffset(level, offset);
                     if (curr == null) { //if curr is null, just insert a new mound node
@@ -144,7 +146,7 @@ public class ConcurrentMound<E> implements PQ<E> {
                         }
 
                     }
-                }finally {
+                } finally {
                     parent.unlock();
                 }
             }
@@ -160,7 +162,7 @@ public class ConcurrentMound<E> implements PQ<E> {
         first.lock();
 
         if (first.lpDeleted()) {
-            assert first.poll() == null;
+            assert first.peek() == null;
             first.unlock();
             return null;
         }
@@ -200,7 +202,7 @@ public class ConcurrentMound<E> implements PQ<E> {
             first.lock();
 
             if (first.lpDeleted()) {
-                assert first.poll() == null;
+                assert first.peek() == null;
                 first.unlock();
                 return;
             }
@@ -250,6 +252,7 @@ public class ConcurrentMound<E> implements PQ<E> {
 
             if (leftLocked && compare(parent.peek(), left.lpMax(), cmp) > 0 && compareMoundPlain(left.peek(), right, cmp) <= 0) {
                 if (rightLocked) right.unlock();
+
                 parent.queue = left.queue;
                 left.queue = parentQueue;
 
@@ -333,8 +336,8 @@ public class ConcurrentMound<E> implements PQ<E> {
             int mid = (low + high) >>> 1 ;
             int normalizedLevel = depth - mid; //we need to invert mid here so we can assume start >> 0 = 1 (the root of the heap)
             int heapIndex = start >> normalizedLevel; //actual index in array to check
-            var leaf = heap.get(mid, heapIndex); //pass mid through as mid already fulfills the start >> 0 precondition
-            int cmp = compareMound(elem, leaf, comparator); //cause leaf could be null
+            var node = heap.get(mid, heapIndex); //pass mid through as mid already fulfills the start >> 0 precondition
+            int cmp = compareMound(elem, node, comparator); //handles the case where node could be null
             if (cmp > 0) low = mid + 1;
             else high = mid;
         }
@@ -356,8 +359,7 @@ public class ConcurrentMound<E> implements PQ<E> {
             lock = new SpinLock();
             lock.lock();
             try {
-                this.queue = new PriorityQueue<>();
-                queue.add(e);
+                (this.queue = new PriorityQueue<>()).add(e);
             }finally {
                 lock.unlock();
             }
@@ -373,7 +375,8 @@ public class ConcurrentMound<E> implements PQ<E> {
 
         /* Only accessed under the lock */
         void add(E e, Comparator<? super E> cmp) {
-            E currMax = lpMax();
+            var queue = this.queue;
+            E currMax = queue.peek();
             queue.add(e);
             if (compare(e, currMax, cmp) < 0) srMax(e);
         }
@@ -433,7 +436,6 @@ public class ConcurrentMound<E> implements PQ<E> {
     }
 
     static class SegmentedArray<E> {
-        //private static final VarHandle ARRAY = VHUtils.arrayVarHandle(ZeroIndexedArray[].class);
         final AtomicReferenceArray<ZeroIndexedArray<E>> array;
 
         public SegmentedArray() {
@@ -602,30 +604,5 @@ public class ConcurrentMound<E> implements PQ<E> {
 
     static int offset(int heapIndex, int level) {
         return heapIndex - (1 << level);
-    }
-
-    //Sanity check
-    static void main() {
-        ConcurrentMound<Integer> m = new ConcurrentMound<>(null);
-        var r = ThreadLocalRandom.current() ;
-        for (int i = 0; i < 1500; ++i) {
-            var val = r.nextInt(0, 10000);
-            m.offer(val);
-        }
-
-        System.out.println(m.treeString());
-
-
-       // System.out.println(m.treeString());
-      //  System.out.println();
-
-//
-        var list = new ArrayList<Integer>();
-        Integer res;
-        while ((res = m.poll()) != null) {
-            list.add(res);
-        }
-        System.out.println(list);
-        System.out.println("Size: " + list.size());
     }
 }
