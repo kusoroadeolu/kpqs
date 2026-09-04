@@ -57,7 +57,7 @@ class SegmentFields<E> extends SegmentLPad {
         deleteBuffer = new SortedList.SortedRingBuffer<>(allocateArray(deleteBufferCapacity), this.comparator);
         var insBufferCap = roundToPowerOfTwo(deleteBufferCapacity * 3);
         insertBuffer = new RingBuffer<>(allocateArray(insBufferCap));
-        lock = new ReentrantLock();
+        lock = new SpinLock();
         queue = q;
         this.id = id;
         heap = allocateArray(Math.max(initialHeapSize, insBufferCap));
@@ -175,7 +175,6 @@ class SegmentFields<E> extends SegmentLPad {
 
 
 
-
     public E pollHeap() {
         final E[] es;
         final E result;
@@ -202,13 +201,10 @@ class SegmentFields<E> extends SegmentLPad {
 
 
     void grow(int oldCap) {
-        int growth = (oldCap < 64)
-                ? (oldCap + 2) // grow faster if small
-                : (oldCap >> 1);
-        int newCap = newLength(oldCap, 1, growth);
+        int newCap = growth(oldCap);
         E[] b;
 
-        //Handle OOMEs gracefully, to prevent corrupting the structure
+        //Handle OOMEs gracefully
         try {
             b = allocateArray(newCap);
         }catch (OutOfMemoryError e) {
@@ -223,7 +219,7 @@ class SegmentFields<E> extends SegmentLPad {
     int growth(int oldCap) {
        int growth = (oldCap < 64)
                 ? (oldCap + 2) // grow faster if small
-                : (oldCap >> 1);
+                : (oldCap >> 2);
         return newLength(oldCap, 1, growth);
     }
 
