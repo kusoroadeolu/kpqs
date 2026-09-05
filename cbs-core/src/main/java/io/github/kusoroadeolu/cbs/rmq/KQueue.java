@@ -27,27 +27,12 @@ class PollFieldPad {
 }
 
 class PollFields extends PollFieldPad {
-//    final Hopper<PollRequest> hopper;
-//    final IdleStrategy strategy;
+
     final Object lock;
 
     PollFields() {
         lock = new Object();
     }
-//
-//    static class PollRequest extends HopperItem<PollRequest> {
-//        final Thread parked;
-//        Object o;
-//
-//        public PollRequest(Thread parked) {
-//            this.parked = parked;
-//        }
-//
-//        void apply(Object o) {
-//            this.o = o;
-//            super.apply();
-//        }
-//    }
 
 }
 
@@ -172,46 +157,13 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
     }
 
     public E poll() {
-//        var hopper = this.hopper;
-//        var strategy = this.strategy;
         var segments = this.segments;
         var q = queue;
-//        var req = new PollRequest(Thread.currentThread());
 
         synchronized (lock) {
             var id = q.poll();
             return doPoll(id, segments);
         }
-//
-//        boolean combine = hopper.add(req);
-//
-//        if (combine) {
-//            var itr = hopper.dump(req);
-//            try {
-//                while (itr.hasNext()) {
-//                    var currReq = itr.next();
-//                    var id = q.poll();
-//                    E polled = null;
-//                    if (id >= 0) {
-//                        polled = doPoll(id, segments);
-//                    }
-//
-//                    currReq.apply(polled);
-//                    LockSupport.unpark(currReq.parked);
-//                }
-//
-//                return (E) req.o;
-//            }finally {
-//                hopper.unlock();
-//            }
-//        }
-//
-//
-//        for (int count = 0; !req.isApplied();) {
-//            count = strategy.idle(count);
-//        }
-//
-//        return (E) req.o;
     }
 
     E doPoll(int id,  Segment<E>[] segments) {

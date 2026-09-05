@@ -68,21 +68,6 @@ public class SpinLock implements Lock {
     //bounded try lock
     public boolean tryLock() {
         return canAcquire();
-//        for (int spins = 0; !canAcquire(); ++spins) {
-//            if (canAcquire()) break;
-//            if (canAcquire()) break;
-//            if (canAcquire()) break;
-//            if (canAcquire()) break;
-//            if (canAcquire()) break;
-//            if (canAcquire()) break;
-//            if (canAcquire()) break;
-//            if (canAcquire()) break;
-//
-//            if (spins < SPINS_BEFORE_PARK) Thread.onSpinWait();
-//            else return false;
-//        }
-//
-//        return true;
     }
 
     public boolean canAcquire() {

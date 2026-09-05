@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 public class MixedThrptBench {
     private RPQ<Integer> queue;
 
-    @Param({RPQFactory.KQ, RPQFactory.PBQ})
+    @Param({RPQFactory.KQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -53,12 +53,6 @@ public class MixedThrptBench {
             pollHit = 0;
             pollMiss = 0;
         }
-    }
-
-    @Threads(8)
-    @Benchmark
-    public void full_insert(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
     }
 
     @Group("ratio_75_25")

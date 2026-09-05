@@ -36,7 +36,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({RPQFactory.KQ, RPQFactory.PBQ})
+    @Param({RPQFactory.KQ})
     private String type;
 
     private CountDownLatch producerStarted;

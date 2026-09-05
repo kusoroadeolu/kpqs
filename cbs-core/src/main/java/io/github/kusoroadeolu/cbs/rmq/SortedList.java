@@ -11,7 +11,7 @@ public interface SortedList<E> {
         int size();
         E poll();
         void clear();
-        static final Object ADDED = new Object();
+        Object ADDED = new Object();
 
         static <E>E added() {
             return (E) ADDED;
@@ -40,6 +40,7 @@ public interface SortedList<E> {
          * Returns null if failed to add
          * Returns previous maximum if successfully added and buffer was full
          * */
+        //can fail if the last element is smaller than e even if the buffer isn't full
         public E offer(E e) {
             int s = size();
 
@@ -48,7 +49,7 @@ public interface SortedList<E> {
                 buffer[offset(pIndex++)] = e;
                 res = added();
             } else {
-                if (comparator.compare(e, buffer[offset(pIndex - 1)]) >= 0) return null; // (>) too large
+                if (comparator.compare(e, peekLast()) >= 0) return null; // (>) too large
                 long index = findInsertionPoint(e);
                 res = shiftRight(e, index);
                 if (!isFull()) ++pIndex;
@@ -58,6 +59,7 @@ public interface SortedList<E> {
             return res;
         }
 
+        //can fail if the last element is smaller than e only if the buffer is full
         public E add(E e) {
             int s = size();
 
@@ -67,7 +69,7 @@ public interface SortedList<E> {
                 res = added();
             } else {
                 //only fail if full
-                if (s == capacity && comparator.compare(e, buffer[offset(pIndex - 1)]) >= 0) return null;
+                if (s == capacity && comparator.compare(e, peekLast()) >= 0) return null;
                 long index = findInsertionPoint(e);
                 if (index == -1) return null; //failed to insert (e > buffer[size -1])
                 res = shiftRight(e, index);
@@ -95,13 +97,6 @@ public interface SortedList<E> {
             buffer[offset] = null;
             cIndex++;
             return first;
-        }
-
-        public void removeLast() {
-            if (isEmpty()) return;
-            int offset = offset(pIndex - 1);
-            buffer[offset] = null;
-            pIndex--;
         }
 
         //Returns added if buffer is not full, otherwise returns the previous "last" element

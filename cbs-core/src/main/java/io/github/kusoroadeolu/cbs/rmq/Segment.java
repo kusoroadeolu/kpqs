@@ -7,7 +7,6 @@ import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.*;
 
@@ -122,6 +121,13 @@ class SegmentFields<E> extends SegmentLPad {
                 addToHeap(e);
                 insBuffer.remove();
             }
+
+//            int cap = delBuffer.capacity();
+//            E toAdd;
+//            for (int i = 0; i < cap && (toAdd = pollHeap()) != null; ++i) {
+//                delBuffer.add(toAdd);
+//                publishId();
+//            }
 
             E added = pollHeap();
             if (added != null) {
