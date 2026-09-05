@@ -3,7 +3,6 @@ package io.github.kusoroadeolu.cbs.bench.baseline;
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
-import io.github.kusoroadeolu.cbs.rmq.KQueue;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -22,7 +21,7 @@ public class SingleThreadedOffer {
 
     final static int RANGE = 1_000_000;
 
-    @Param({RPQFactory.KQ, RPQFactory.PBQ})
+    @Param({RPQFactory.MQ, RPQFactory.PBQ})
     public String type;
 
 
@@ -60,11 +59,11 @@ public class SingleThreadedOffer {
 
 /*
 * Benchmark                  (skew)                 (type)  Mode  Cnt    Score   Error  Units
-SingleThreadedOffer.add      1000                 KQueue  avgt   15  205.715 ± 2.775  ns/op
+SingleThreadedOffer.add      1000                 MultiQueue  avgt   15  205.715 ± 2.775  ns/op
 SingleThreadedOffer.add      1000  PriorityBlockingQueue  avgt   15   33.616 ± 1.175  ns/op
-SingleThreadedOffer.add    100000                 KQueue  avgt   15  205.171 ± 3.701  ns/op
+SingleThreadedOffer.add    100000                 MultiQueue  avgt   15  205.171 ± 3.701  ns/op
 SingleThreadedOffer.add    100000  PriorityBlockingQueue  avgt   15   33.559 ± 0.888  ns/op
-SingleThreadedOffer.add  10000000                 KQueue  avgt   15  204.423 ± 2.149  ns/op
+SingleThreadedOffer.add  10000000                 MultiQueue  avgt   15  204.423 ± 2.149  ns/op
 SingleThreadedOffer.add  10000000  PriorityBlockingQueue  avgt   15   33.696 ± 0.671  ns/op
 * */
 

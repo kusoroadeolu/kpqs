@@ -2,7 +2,6 @@ package io.github.kusoroadeolu.cbs.bench.baseline;
 
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.PhaseBench;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -25,7 +24,7 @@ public class SingleThreadedPoll {
     private volatile boolean dontUnroll = true;
 
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.MQ})
     public String type;
 
 

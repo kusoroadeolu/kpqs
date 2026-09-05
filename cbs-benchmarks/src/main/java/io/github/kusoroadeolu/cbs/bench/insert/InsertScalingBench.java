@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 public class InsertScalingBench {
     private RPQ<Integer> queue;
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.MQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -77,25 +77,25 @@ public class InsertScalingBench {
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.eight_full_insert ─╮
 │  Type   Score  Error   Unit                                                   │
 │  ------ ------ ------- ------                                                 │
-│  KQueue 34.516 ± 2.167 ops/us                                                 │
+│  MultiQueue 34.516 ± 2.167 ops/us                                             │
 ╰───────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.four_full_insert ─╮
 │  Type   Score  Error   Unit                                                  │
 │  ------ ------ ------- ------                                                │
-│  KQueue 28.376 ± 1.436 ops/us                                                │
+│  MultiQueue 28.376 ± 1.436 ops/us                                            │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.six_full_insert ─╮
 │  Type   Score  Error   Unit                                                 │
 │  ------ ------ ------- ------                                               │
-│  KQueue 32.076 ± 1.764 ops/us                                               │
+│  MultiQueue 32.076 ± 1.764 ops/us                                           │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.two_full_insert ─╮
 │  Type   Score  Error   Unit                                                 │
 │  ------ ------ ------- ------                                               │
-│  KQueue 21.826 ± 1.052 ops/us                                               │
+│  MultiQueue 21.826 ± 1.052 ops/us                                           │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 **/
 

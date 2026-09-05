@@ -8,7 +8,6 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SegmentTest {
-    static final MpscLeaderQueue queue = new MpscLeaderQueue(100);
 
     @Test
     void onAdds_assertReturnsMin() {
@@ -22,7 +21,7 @@ class SegmentTest {
     }
 
     private Segment<Integer> newSegment(int deleteBufferCapacity) {
-        return new Segment<>(deleteBufferCapacity, queue, 0, Integer::compareTo);
+        return new Segment<>(deleteBufferCapacity, 0, Integer::compareTo);
     }
 
     @Test

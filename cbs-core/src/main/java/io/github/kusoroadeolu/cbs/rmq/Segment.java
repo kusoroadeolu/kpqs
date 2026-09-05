@@ -35,10 +35,14 @@ class SegmentFields<E> extends SegmentLPad {
     final Lock lock;
     final Comparator<? super E> comparator;
     final int id;
-    final MpscLeaderQueue queue;
+    static final int DELETE_BUFFER_SIZE = 128; //max number of publications a segment can make in the queue (size of the sorted buffer which is the size of a cache line)
+
 
     private static final VarHandle SIZE = VHUtils.fieldVarHandle(MethodHandles.lookup(), SegmentFields.class, "size", int.class);
     int size;
+
+    E min;
+    private static final VarHandle MIN = VHUtils.fieldVarHandle(MethodHandles.lookup(), SegmentFields.class, "min", Object.class);
 
     E[] heap;
     int heapSize;
@@ -47,17 +51,16 @@ class SegmentFields<E> extends SegmentLPad {
 
 
     //del capacity should be a pow of 2
-    public SegmentFields(int deleteBufferCapacity, MpscLeaderQueue q, int id , Comparator<? super E> cmp) {
-        this(deleteBufferCapacity, q, id, 0, cmp);
+    public SegmentFields(int id , Comparator<? super E> cmp) {
+        this(DELETE_BUFFER_SIZE, id, 0, cmp);
     }
 
-    public SegmentFields(int deleteBufferCapacity, MpscLeaderQueue q, int id, int initialHeapSize ,Comparator<? super E> cmp) {
-        this.comparator = comparator(cmp);
+    public SegmentFields(int deleteBufferCapacity, int id, int initialHeapSize ,Comparator<? super E> cmp) {
+        this.comparator = cmp;
         deleteBuffer = new SortedList.SortedRingBuffer<>(allocateArray(deleteBufferCapacity), this.comparator);
         var insBufferCap = roundToPowerOfTwo(deleteBufferCapacity * 3);
         insertBuffer = new RingBuffer<>(allocateArray(insBufferCap));
         lock = new SpinLock();
-        queue = q;
         this.id = id;
         heap = allocateArray(Math.max(initialHeapSize, insBufferCap));
         //  heapAllocationLock = new SpinLock();
@@ -67,9 +70,9 @@ class SegmentFields<E> extends SegmentLPad {
         var insBuffer = insertBuffer;
         var delBuffer = deleteBuffer;
 
-       // outer: for (;;) {
             E result;
             boolean insEmpty = insBuffer.size() == 0;
+            E min = delBuffer.peekFirst();
             //both ins ahd heap empty
             if (insEmpty && (heapSize == 0 || comparator.compare(e, heap[0]) < 0)) result = delBuffer.add(e); //must add if the del buffer isn't full
             else result = delBuffer.offer(e); //will only add if it's smaller than the largest elem in the del buffer
@@ -77,7 +80,7 @@ class SegmentFields<E> extends SegmentLPad {
 
             //Successfully added (not full), publish id in leader queue
             if (result == SortedList.added()) {
-                publishId(); //slowest path due to cache coherence traffic while publishing to the queue
+                if (min == null || comparator.compare(e, min) < 0) MIN.setOpaque(this, e);
                 SIZE.getAndAddRelease(this, 1);
                 return true;
             }
@@ -99,9 +102,9 @@ class SegmentFields<E> extends SegmentLPad {
                 insBuffer.add(toAdd);
             }
 
+            if (comparator.compare(e, min) < 0) MIN.setOpaque(this, e);
             SIZE.getAndAddRelease(this, 1);
             return true;
-        //}
 
     }
 
@@ -122,53 +125,18 @@ class SegmentFields<E> extends SegmentLPad {
                 insBuffer.remove();
             }
 
-//            int cap = delBuffer.capacity();
-//            E toAdd;
-//            for (int i = 0; i < cap && (toAdd = pollHeap()) != null; ++i) {
-//                delBuffer.add(toAdd);
-//                publishId();
-//            }
-
-            E added = pollHeap();
-            if (added != null) {
-                delBuffer.add(added);
-                publishId();
+            int cap = delBuffer.capacity();
+            E toAdd;
+            for (int i = 0; i < cap && (toAdd = pollHeap()) != null; ++i) {
+                delBuffer.add(toAdd);
             }
 
          }
 
+        MIN.setOpaque(this, delBuffer.peekFirst());
         SIZE.getAndAddRelease(this, -1);
         return result;
     }
-
-//    boolean tryGrow(Object[] array, int heapCapacity) {
-//        release();
-//        E[] newArray = null;
-//        int newCapacity = growth(heapCapacity);
-//        if (heapAllocationLock.tryLock()) {
-//            try {
-//                if (array == this.heap)
-//                    newArray = (E[]) new Object[newCapacity];
-//            } finally {
-//                heapAllocationLock.unlock();
-//            }
-//        }
-//
-//        if (newArray == null) { //another thread is allocating, try another segment
-//            Thread.yield();
-//            return false;
-//        }
-//
-//        acquire();
-//
-//        if (array == this.heap) {
-//            System.arraycopy(heap, 0, newArray, 0, heapSize);
-//            this.heap = newArray;
-//            this.heapCapacity = newCapacity;
-//        }
-//
-//        return true;
-//    }
 
     public void addToHeap(E e) {
         int s = heapSize;
@@ -229,10 +197,6 @@ class SegmentFields<E> extends SegmentLPad {
         return newLength(oldCap, 1, growth);
     }
 
-    void publishId() {
-        queue.offer(id);
-    }
-
     public void acquire() {
         lock.lock();
     }
@@ -255,10 +219,7 @@ class SegmentFields<E> extends SegmentLPad {
     }
 
 
-    static <E> Comparator<? super E> comparator(Comparator<? super E> cmp) {
-        if (cmp == null) return (a, b) -> ((Comparable<? super E>) a).compareTo(b);
-        return cmp;
-    }
+
 
     static <E>void siftUp(int k, E x, E[] buffer, Comparator<? super E> comparator) {
         while (k > 0) {
@@ -343,6 +304,10 @@ class SegmentFields<E> extends SegmentLPad {
         return sb.toString();
     }
 
+    E min() {
+        return (E) MIN.getOpaque(this);
+    }
+
 }
 
 public class Segment<E> extends SegmentFields<E> {
@@ -353,12 +318,12 @@ public class Segment<E> extends SegmentFields<E> {
     byte b040,b041,b042,b043,b044,b045,b046,b047;// 40b
     byte b050,b051,b052,b053,b054,b055,b056,b057;// 48b // 48 + 80 = 128
 
-    public Segment(int bufferSize, MpscLeaderQueue q, int id, Comparator<? super E> cmp) {
-        super(bufferSize, q, id, cmp);
+    public Segment(int id, int initialHeapSize ,Comparator<? super E> cmp) {
+        this(DELETE_BUFFER_SIZE, id, initialHeapSize, cmp);
     }
 
-    public Segment(int bufferSize, MpscLeaderQueue q, int id, int initialHeapSize ,Comparator<? super E> cmp) {
-        super(bufferSize, q, id, initialHeapSize ,cmp);
+    public Segment(int bufferSize, int id, int initialHeapSize ,Comparator<? super E> cmp) {
+        super(bufferSize, id, initialHeapSize ,cmp);
     }
 
     void clear() {

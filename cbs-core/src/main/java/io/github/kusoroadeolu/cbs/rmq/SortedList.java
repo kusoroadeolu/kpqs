@@ -10,7 +10,9 @@ public interface SortedList<E> {
         E offer(E e);
         int size();
         E poll();
+        E peekFirst();
         void clear();
+        int capacity();
         Object ADDED = new Object();
 
         static <E>E added() {
@@ -99,6 +101,11 @@ public interface SortedList<E> {
             return first;
         }
 
+        @Override
+        public E peekFirst() {
+            return buffer[offset(offset(cIndex))];
+        }
+
         //Returns added if buffer is not full, otherwise returns the previous "last" element
         E shiftRight(E elem, long index) {
             long pIndex = this.pIndex;
@@ -163,6 +170,11 @@ public interface SortedList<E> {
 
             pIndex = 0;
             cIndex = 0;
+        }
+
+        @Override
+        public int capacity() {
+            return capacity;
         }
 
         @Override

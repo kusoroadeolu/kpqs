@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 public class InsertScalingJitterBench {
     private RPQ<Integer> queue;
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.MQ})
     private String type;
 
     final static int JITTER_RANGE = 100;
@@ -119,25 +119,25 @@ public class InsertScalingJitterBench {
 * ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
 │  Type   Score  Error   Unit                                                         │
 │  ------ ------ ------- ------                                                       │
-│  KQueue 39.887 ± 2.022 ops/us                                                       │
+│  MultiQueue 39.887 ± 2.022 ops/us                                                       │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
 │  Type   Score  Error   Unit                                                        │
 │  ------ ------ ------- ------                                                      │
-│  KQueue 35.239 ± 2.091 ops/us                                                      │
+│  MultiQueue 35.239 ± 2.091 ops/us                                                      │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
 │  Type   Score  Error   Unit                                                       │
 │  ------ ------ ------- ------                                                     │
-│  KQueue 38.337 ± 2.061 ops/us                                                     │
+│  MultiQueue 38.337 ± 2.061 ops/us                                                     │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
 │  Type   Score  Error   Unit                                                       │
 │  ------ ------ ------- ------                                                     │
-│  KQueue 27.676 ± 1.360 ops/us                                                     │
+│  MultiQueue 27.676 ± 1.360 ops/us                                                     │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 *

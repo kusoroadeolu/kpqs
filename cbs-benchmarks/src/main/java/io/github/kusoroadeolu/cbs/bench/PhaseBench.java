@@ -2,7 +2,6 @@ package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
-import io.github.kusoroadeolu.cbs.rmq.KQueue;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -36,7 +35,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.MQ})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -241,11 +240,10 @@ public class PhaseBench {
 }
 
 /*
-╭ io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ─╮
-│  ConsumerProducerThreadCount Type Score    Error     Unit      │
-│  --------------------------- ---- -------- --------- -----     │
-│  8                           KQ   2081.842 ± 317.353 us/op     │
-│  8                           PBQ  1217.208 ± 90.112  us/op     │
-╰────────────────────────────────────────────────────────────────╯
+╭── io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ──╮
+│  ConsumerProducerThreadCount Type       Score    Error     Unit   │
+│  --------------------------- ---------- -------- --------- -----  │
+│  8                           MultiQueue 2412.544 ± 368.336 us/op  │
+╰───────────────────────────────────────────────────────────────────╯
 * */
 
