@@ -124,20 +124,21 @@ public class MixedThrptBench {
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
 │  Type   Role       Score Error   Unit                         │
 │  ------ ---------- ----- ------- ------                       │
-│  Mounds fifty_add  1.830 ± 0.201 ops/us                       │
-│  Mounds fifty_poll 1.346 ± 0.127 ops/us                       │
-│  Mounds pollHit    1.348 ± 0.127 ops/us                       │
+│  Mounds fifty_add  1.922 ± 0.183 ops/us                       │
+│  Mounds fifty_poll 1.241 ± 0.138 ops/us                       │
+│  Mounds pollHit    1.243 ± 0.138 ops/us                       │
 │  Mounds pollMiss   0.000 ± 0.000 ops/us                       │
-│  Mounds aggregate  3.175 ± 0.312 ops/us                       │
+│  Mounds aggregate  3.163 ± 0.305 ops/us                       │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
 │  Type   Role             Score Error   Unit                   │
 │  ------ ---------------- ----- ------- ------                 │
-│  Mounds pollHit          1.034 ± 0.057 ops/us                 │
+│  Mounds pollHit          0.975 ± 0.094 ops/us                 │
 │  Mounds pollMiss         0.000 ± 0.000 ops/us                 │
-│  Mounds seventy_five_add 3.312 ± 0.233 ops/us                 │
-│  Mounds twenty_five_poll 1.032 ± 0.057 ops/us                 │
-│  Mounds aggregate        4.345 ± 0.270 ops/us                 │
+│  Mounds seventy_five_add 3.673 ± 0.265 ops/us                 │
+│  Mounds twenty_five_poll 0.973 ± 0.094 ops/us                 │
+│  Mounds aggregate        4.646 ± 0.349 ops/us                 │
 ╰───────────────────────────────────────────────────────────────╯
+
 * */

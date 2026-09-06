@@ -4,15 +4,12 @@ import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.PriorityQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.comparator;
 
@@ -35,6 +32,16 @@ public class ConcurrentMound<E> implements PQ<E> {
         return depth + 1;
     }
 
+    @Override
+    public String toString() {
+        var heap = this.heap;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i <= depth; ++i) {
+            sb.append(heap.lvArray(i));
+        }
+
+        return sb.toString();
+    }
 
     //Note: tries is only incremented when we find an ins point where
     public boolean offer(E e) {
@@ -51,7 +58,7 @@ public class ConcurrentMound<E> implements PQ<E> {
 
                 if (node == null || node.laDeleted()) {
                     if (heap.cas(0, 1, node, new MoundNode<>(e))) return true;
-                } else if (compare(e, node.laMax(), cmp) > 0) break;
+                } else if (compare(e, node.loMax(), cmp) > 0) break;
                 else {
                     node.lock();
                     try {
@@ -98,7 +105,7 @@ public class ConcurrentMound<E> implements PQ<E> {
                 var node = heap.get(0, heapIndex);
                 if (node == null || node.laDeleted()) {
                     if (heap.cas(0, 1, node, new MoundNode<>(e))) return true; //fast path
-                } else if (compare(e, node.laMax(), cmp) <= 0) { //check optimistically then validate
+                } else if (compare(e, node.loMax(), cmp) <= 0) { //check optimistically then validate
                     node.lock();
                     try {
                         if (!node.lpDeleted() && compare(e, node.lpMax(), cmp) <= 0) {
@@ -116,8 +123,7 @@ public class ConcurrentMound<E> implements PQ<E> {
                 assert level > 0;
                 var parent = heap.get(level - 1, parentIndex);
 
-                //parent should be >= e, avoid the acquire read unless needed
-                if (parent == null || compare(e, parent.laMax(), cmp) < 0 || parent.laDeleted()) continue;
+                if (parent == null  || parent.laDeleted() || compare(e, parent.loMax(), cmp) < 0) continue;
 
                 parent.lock();
                 try {
@@ -130,11 +136,13 @@ public class ConcurrentMound<E> implements PQ<E> {
                         return true;
                     } else if (curr.laDeleted()) { //if curr is deleted, wait till the deleter nulls out its slot, then insert a new mound node
                         var node = new MoundNode<>(e);
-                        assert heap.casOffset(level, offset, curr, node) || heap.casOffset(level, offset, null, node);
+                        if(!heap.casOffset(level, offset, curr, node)) {
+                            heap.putOffset(level, offset, node);
+                        }
                         return true;
                     } else {
                         // e <= curr
-                        if (compare(e, curr.laMax(), cmp) > 0) continue;
+                        if (compare(e, curr.loMax(), cmp) > 0) continue;
                         curr.lock();  //else hold lock then revalidate
                         try {
                             if (!curr.lpDeleted() && compare(e, curr.lpMax(), cmp) <= 0) {
@@ -264,7 +272,8 @@ public class ConcurrentMound<E> implements PQ<E> {
                 parent = left;
                 parentIndex = leftIndex;
                 parentLevel = childLevel;
-            } else if (compareMoundPlain(parent.peek(), right, cmp) > 0) {
+
+            } else if (rightLocked && compareMoundPlain(parent.peek(), right, cmp) > 0) {
                 if (leftLocked) left.unlock();
 
                 parent.queue = right.queue; //can't NPE
@@ -357,12 +366,9 @@ public class ConcurrentMound<E> implements PQ<E> {
 
         public MoundNode(E e) {
             lock = new SpinLock();
-            lock.lock();
-            try {
-                (this.queue = new PriorityQueue<>()).add(e);
-            }finally {
-                lock.unlock();
-            }
+            (this.queue = new PriorityQueue<>()).add(e);
+            MAX.set(this, e);
+            //backed by volatile write
         }
 
         void lock() {
@@ -413,8 +419,12 @@ public class ConcurrentMound<E> implements PQ<E> {
 
 
         /* Accessed outside the lock */
+        E loMax() {
+           return (E) MAX.getOpaque(this);
+        }
+
         E laMax() {
-           return (E) MAX.getAcquire(this);
+            return (E) MAX.getAcquire(this);
         }
 
         boolean laDeleted() {
@@ -427,7 +437,7 @@ public class ConcurrentMound<E> implements PQ<E> {
         public String toString() {
             lock();
             try {
-                return queue.toString();
+                return "Cached max: %s".formatted(lpMax()) + ", Queue: " + queue.toString() + "; ";
             }finally {
                 unlock();
             }
@@ -491,12 +501,12 @@ public class ConcurrentMound<E> implements PQ<E> {
 
     static <E>int compareMound(E e, MoundNode<E> other, Comparator<? super E> comparator) {
         if (other == null) return -1;
-        return compare(e, other.laMax(), comparator);
+        return compare(e, other.loMax(), comparator);
     }
 
     static <E>int compareMoundPlain(E e, MoundNode<E> other, Comparator<? super E> comparator) {
         if (other == null) return -1;
-        return compare(e, other.lpMax(), comparator);
+        return compare(e, other.peek(), comparator);
     }
 
     static <E> int compare(E e, E other, Comparator<? super E> comparator) {
@@ -566,6 +576,17 @@ public class ConcurrentMound<E> implements PQ<E> {
         byte b160,b161,b162,b163;//120b
         public ZeroIndexedArray(int capacity) {
             super(capacity);
+        }
+
+        @Override
+        public String toString() {
+            int len = array.length;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < len; ++i) {
+                sb.append(array[i]);
+            }
+
+            return sb.toString();
         }
     }
 

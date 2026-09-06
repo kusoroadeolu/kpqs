@@ -59,12 +59,12 @@ public class SingleThreadedOffer {
 }
 
 /*
-* Benchmark                  (skew)                 (type)  Mode  Cnt    Score   Error  Units
-SingleThreadedOffer.add      1000                 KQueue  avgt   15  205.715 ± 2.775  ns/op
-SingleThreadedOffer.add      1000  PriorityBlockingQueue  avgt   15   33.616 ± 1.175  ns/op
-SingleThreadedOffer.add    100000                 KQueue  avgt   15  205.171 ± 3.701  ns/op
-SingleThreadedOffer.add    100000  PriorityBlockingQueue  avgt   15   33.559 ± 0.888  ns/op
-SingleThreadedOffer.add  10000000                 KQueue  avgt   15  204.423 ± 2.149  ns/op
-SingleThreadedOffer.add  10000000  PriorityBlockingQueue  avgt   15   33.696 ± 0.671  ns/op
+
+╭ io.github.kusoroadeolu.cbs.bench.baseline.SingleThreadedOffer.add ─╮
+│  Type                  Score   Error   Unit                        │
+│  --------------------- ------- ------- -----                       │
+│  Mounds                112.580 ± 7.118 ns/op                       │
+╰────────────────────────────────────────────────────────────────────╯
+
 * */
 

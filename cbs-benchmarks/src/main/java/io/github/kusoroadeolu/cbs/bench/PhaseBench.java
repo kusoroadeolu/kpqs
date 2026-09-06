@@ -243,8 +243,8 @@ public class PhaseBench {
 ╭─────── io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ────────╮
 │  ConsumerProducerThreadCount Type                  Score    Error     Unit   │
 │  --------------------------- --------------------- -------- --------- -----  │
-│  8                           Mounds                7139.516 ± 843.810 us/op  │
-│  8                           PriorityBlockingQueue 1475.681 ± 77.978  us/op  │
+│  8                           Mounds                6920.871 ± 877.602 us/op  │
+│  8                           PriorityBlockingQueue 1601.535 ± 134.380 us/op  │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 * */

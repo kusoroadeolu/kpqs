@@ -92,24 +92,24 @@ public class InsertScalingBench {
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.eight_full_insert ─╮
 │  Type   Score Error   Unit                                                    │
 │  ------ ----- ------- ------                                                  │
-│  Mounds 5.523 ± 0.273 ops/us                                                  │
+│  Mounds 5.410 ± 0.166 ops/us                                                  │
 ╰───────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.four_full_insert ─╮
 │  Type   Score Error   Unit                                                   │
 │  ------ ----- ------- ------                                                 │
-│  Mounds 4.923 ± 0.284 ops/us                                                 │
+│  Mounds 4.803 ± 0.156 ops/us                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.six_full_insert ─╮
 │  Type   Score Error   Unit                                                  │
 │  ------ ----- ------- ------                                                │
-│  Mounds 5.271 ± 0.313 ops/us                                                │
+│  Mounds 5.361 ± 0.084 ops/us                                                │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.two_full_insert ─╮
 │  Type   Score Error   Unit                                                  │
 │  ------ ----- ------- ------                                                │
-│  Mounds 3.128 ± 0.171 ops/us                                                │
+│  Mounds 3.340 ± 0.159 ops/us                                                │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 * */

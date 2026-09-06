@@ -25,7 +25,7 @@ public class SingleThreadedPoll {
     private volatile boolean dontUnroll = true;
 
 
-    @Param({PQFactory.MOUNDS, PQFactory.PBQ})
+    @Param({PQFactory.MOUNDS})
     public String type;
 
 
@@ -73,5 +73,12 @@ public class SingleThreadedPoll {
     }
 }
 
+/*
+╭ io.github.kusoroadeolu.cbs.bench.baseline.SingleThreadedPoll.add ─╮
+│  Type   Score   Error    Unit                                     │
+│  ------ ------- -------- -----                                    │
+│  Mounds 552.733 ± 27.222 ns/op                                    │
+╰───────────────────────────────────────────────────────────────────╯
+* */
 
 
