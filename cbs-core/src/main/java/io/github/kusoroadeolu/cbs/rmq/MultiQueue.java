@@ -119,14 +119,22 @@ public class MultiQueue<E> implements RPQ<E> {
             }
 
             Segment<E> toLock;
+            E min;
 
-            if (compare(fMin, sMin, cmp) <= 0) toLock = fSegment;
-            else toLock = sSegment;
+            if (compare(fMin, sMin, cmp) <= 0) {
+                toLock = fSegment;
+                min = fMin;
+            }
+            else {
+                toLock = sSegment;
+                min = sMin;
+            }
 
             if (toLock.tryAcquire()) {
                 try {
-                    E poll = toLock.poll();
-                    if (poll != null) return poll;
+                    E peek = toLock.peek();
+                    if (peek == null || compare(min, peek, cmp) > 0) continue;
+                    return toLock.poll();
                 }finally {
                     toLock.release();
                 }

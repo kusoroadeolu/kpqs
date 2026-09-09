@@ -109,33 +109,34 @@ class SegmentFields<E> extends SegmentLPad {
     }
 
     public E poll() {
-        var insBuffer = insertBuffer;
         var delBuffer = deleteBuffer;
 
         E result = delBuffer.poll();
 
         if (result == null) return null;
 
-
-        if (delBuffer.isEmpty()) { //Try to keep elements in the delete buffer
-            E e;
-
-            while ((e = insBuffer.peek()) != null){
-                addToHeap(e);
-                insBuffer.remove();
-            }
-
-            int cap = delBuffer.capacity();
-            E toAdd;
-            for (int i = 0; i < cap && (toAdd = pollHeap()) != null; ++i) {
-                delBuffer.add(toAdd);
-            }
-
-         }
-
         MIN.setOpaque(this, delBuffer.peekFirst());
         SIZE.getAndAddRelease(this, -1);
         return result;
+    }
+
+    public E peek() {
+        var min = deleteBuffer.peekFirst();
+
+        if (min == null)  {
+            if ((insertBuffer.size() == 0) && heapSize == 0) return null;
+            else {
+                E e;
+                while ((e = insertBuffer.peek()) != null){
+                    addToHeap(e);
+                    insertBuffer.remove();
+                }
+
+                return heap[0];
+            }
+        }
+
+        return min;
     }
 
     public void addToHeap(E e) {
@@ -286,6 +287,10 @@ class SegmentFields<E> extends SegmentLPad {
             return (int) (pIndex - cIndex);
         }
 
+        boolean isFull() {
+            return size() == (mask + 1);
+        }
+
         public E peek() {
             return buffer[offset(cIndex, mask)];
         }
@@ -337,6 +342,5 @@ public class Segment<E> extends SegmentFields<E> {
           release();
         }
     }
-
 
 }
