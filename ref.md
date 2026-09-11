@@ -24,7 +24,7 @@ The concurrent queue itself uses a shared array of worker level structures (mapp
 min heap then add your new element into the local linked list
 
 
-**Delete-min flow:** Uses combining — one thread becomes "coordinator"  and serves a batch of pending delete-min requests sequentially against the shared mpsc, instead of every thread fighting over the same list node.
+**Delete-min flow:** Uses combining — one thread becomes "coordinator"  and serves a batch of pending delete-min requests sequentially against the shared mpsc, instead of every thread fighting over the same list chunk.
 If a thread's leader level presence drops too low, elements get "helped" back up from its worker heap.
 
 The serial flow goes as is: Poll a value from the leader level which will give us an index of a worker heap in the worker heap array. Lock that worker heap
@@ -50,7 +50,7 @@ If necessary to upsert a new value from the min heap, remove the top element fro
 - **Slower path** — new key beats your local min → insert into the leader list directly.
 - **Slowest path** — leader list is full for your thread → insert into leader list *and* demote your own worst leader-list entry back into your local heap.
 
-**Delete-min flow:** Uses combining — one thread becomes "coordinator"  and serves a batch of pending delete-min requests sequentially against the leader list, instead of every thread fighting over the same list node. If a thread's leader-list presence drops too low, elements get "helped" back up from its worker heap.
+**Delete-min flow:** Uses combining — one thread becomes "coordinator"  and serves a batch of pending delete-min requests sequentially against the leader list, instead of every thread fighting over the same list chunk. If a thread's leader-list presence drops too low, elements get "helped" back up from its worker heap.
 
 **Tradeoff:** Insert is nearly embarrassingly parallel in the common case; delete-min stays sequential-ish but is offloaded via combining. Best for insert-dominant workloads.
 
