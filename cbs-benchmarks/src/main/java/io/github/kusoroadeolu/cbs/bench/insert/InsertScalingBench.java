@@ -87,3 +87,29 @@ public class InsertScalingBench {
         }
     }
 }
+
+/*
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.eight_full_insert ─╮
+│  Type      Score Error   Unit                                                 │
+│  --------- ----- ------- ------                                               │
+│  ChunkedPQ 0.286 ± 0.035 ops/us                                               │
+╰───────────────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.four_full_insert ─╮
+│  Type      Score Error   Unit                                                │
+│  --------- ----- ------- ------                                              │
+│  ChunkedPQ 0.226 ± 0.001 ops/us                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.six_full_insert ─╮
+│  Type      Score Error   Unit                                               │
+│  --------- ----- ------- ------                                             │
+│  ChunkedPQ 0.251 ± 0.001 ops/us                                             │
+╰─────────────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.two_full_insert ─╮
+│  Type      Score Error   Unit                                               │
+│  --------- ----- ------- ------                                             │
+│  ChunkedPQ 0.189 ± 0.002 ops/us                                             │
+╰─────────────────────────────────────────────────────────────────────────────╯
+* */

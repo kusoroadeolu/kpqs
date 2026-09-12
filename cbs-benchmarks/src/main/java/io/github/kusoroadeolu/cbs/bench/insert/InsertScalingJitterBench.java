@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, time = 1)
-@Measurement(iterations = 15, time = 1)
+@Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 
 //Monotonic values with some random jitter
@@ -91,3 +91,30 @@ public class InsertScalingJitterBench {
         bh.consume(offer);
     }
 }
+
+/*
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
+│  Type      Score Error   Unit                                                       │
+│  --------- ----- ------- ------                                                     │
+│  ChunkedPQ 0.221 ± 0.004 ops/us                                                     │
+╰─────────────────────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
+│  Type      Score Error   Unit                                                      │
+│  --------- ----- ------- ------                                                    │
+│  ChunkedPQ 0.144 ± 0.002 ops/us                                                    │
+╰────────────────────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
+│  Type      Score Error   Unit                                                     │
+│  --------- ----- ------- ------                                                   │
+│  ChunkedPQ 0.191 ± 0.001 ops/us                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
+│  Type      Score Error   Unit                                                     │
+│  --------- ----- ------- ------                                                   │
+│  ChunkedPQ 0.077 ± 0.003 ops/us                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────╯
+* */
+
