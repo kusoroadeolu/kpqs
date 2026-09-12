@@ -55,8 +55,13 @@ public class ChunkedPQ<E> implements PQ<E> {
 
 
     public ChunkedPQ() {
+        this((Comparator<? super E>) Comparator.naturalOrder());
+    }
+
+    public ChunkedPQ(Comparator<? super E> cmp) {
+        Objects.requireNonNull(cmp);
         head = new Chunk<>(null, null);
-        cmp = (Comparator<? super E>) Comparator.naturalOrder();
+        this.cmp = cmp;
     }
 
     @Override
