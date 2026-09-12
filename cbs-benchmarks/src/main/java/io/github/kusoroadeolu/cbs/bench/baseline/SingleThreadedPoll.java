@@ -25,13 +25,13 @@ public class SingleThreadedPoll {
     private volatile boolean dontUnroll = true;
 
 
-    @Param({PQFactory.MOUNDS, PQFactory.PBQ})
+    @Param({PQFactory.CBQ, PQFactory.PBQ})
     public String type;
 
 
     @Setup
     public void setup() {
-        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
+        queue = PQFactory.createPQ(type);
     }
 
     @Setup(Level.Invocation)

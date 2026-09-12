@@ -1,6 +1,5 @@
 package io.github.kusoroadeolu.cbs.bench.insert;
 
-import io.github.kusoroadeolu.cbs.ConcurrentMound;
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
@@ -22,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 public class InsertScalingJitterBench {
     private PQ<Integer> queue;
 
-    @Param({PQFactory.MOUNDS})
+    @Param({PQFactory.CBQ})
     private String type;
 
     final static int JITTER_RANGE = 100;
@@ -30,7 +29,7 @@ public class InsertScalingJitterBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
+        queue = PQFactory.createPQ(type);
     }
 
 
@@ -39,8 +38,7 @@ public class InsertScalingJitterBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
-            else queue.clear();
+            queue.clear();
         }
     }
 
@@ -93,55 +91,3 @@ public class InsertScalingJitterBench {
         bh.consume(offer);
     }
 }
-
-/*
-* ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
-│  Type                  Score  Error   Unit                                          │
-│  --------------------- ------ ------- ------                                        │
-│  PriorityBlockingQueue 17.283 ± 0.949 ops/us                                        │
-╰─────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
-│  Type                  Score  Error   Unit                                         │
-│  --------------------- ------ ------- ------                                       │
-│  PriorityBlockingQueue 18.221 ± 0.874 ops/us                                       │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
-│  Type                  Score  Error   Unit                                        │
-│  --------------------- ------ ------- ------                                      │
-│  PriorityBlockingQueue 17.343 ± 0.884 ops/us                                      │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
-│  Type                  Score  Error   Unit                                        │
-│  --------------------- ------ ------- ------                                      │
-│  PriorityBlockingQueue 13.740 ± 0.488 ops/us                                      │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-*
-* ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
-│  Type   Score  Error   Unit                                                         │
-│  ------ ------ ------- ------                                                       │
-│  KQueue 39.887 ± 2.022 ops/us                                                       │
-╰─────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
-│  Type   Score  Error   Unit                                                        │
-│  ------ ------ ------- ------                                                      │
-│  KQueue 35.239 ± 2.091 ops/us                                                      │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
-│  Type   Score  Error   Unit                                                       │
-│  ------ ------ ------- ------                                                     │
-│  KQueue 38.337 ± 2.061 ops/us                                                     │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
-│  Type   Score  Error   Unit                                                       │
-│  ------ ------ ------- ------                                                     │
-│  KQueue 27.676 ± 1.360 ops/us                                                     │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-
-*
-* */

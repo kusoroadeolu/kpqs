@@ -22,13 +22,13 @@ public class SingleThreadedOffer {
 
     final static int RANGE = 1_000_000;
 
-    @Param({PQFactory.MOUNDS, PQFactory.PBQ})
+    @Param({PQFactory.CBQ, PQFactory.PBQ})
     public String type;
 
 
     @Setup
     public void setup() {
-        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
+        queue = PQFactory.createPQ(type);
     }
 
     @TearDown(Level.Invocation)

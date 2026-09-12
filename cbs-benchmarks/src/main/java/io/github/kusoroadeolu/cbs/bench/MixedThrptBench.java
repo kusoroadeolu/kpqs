@@ -1,9 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench;
 
-import io.github.kusoroadeolu.cbs.ConcurrentMound;
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
-import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -11,7 +9,6 @@ import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
-import java.util.Comparator;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -24,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 public class MixedThrptBench {
     private PQ<Integer> queue;
 
-    @Param({PQFactory.MOUNDS})
+    @Param({PQFactory.CBQ})
     private String type;
 
     final static int RANGE = 10_000_000;
@@ -32,15 +29,15 @@ public class MixedThrptBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
+        queue = PQFactory.createPQ(type);
+        for (int i = 0; i < 500_000; ++i) queue.offer(nextInt());
     }
 
     @TearDown(Level.Iteration)
     public void emptyQ() {
         synchronized (queue)
         {
-            if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
-            else queue.clear();
+            queue.clear();
         }
     }
 
@@ -114,25 +111,3 @@ public class MixedThrptBench {
         }
     }
 }
-
-/*
-* ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
-│  Type   Role       Score Error   Unit                         │
-│  ------ ---------- ----- ------- ------                       │
-│  Mounds fifty_add  1.552 ± 0.162 ops/us                       │
-│  Mounds fifty_poll 1.382 ± 0.543 ops/us                       │
-│  Mounds pollHit    0.603 ± 0.039 ops/us                       │
-│  Mounds pollMiss   0.793 ± 0.539 ops/us                       │
-│  Mounds aggregate  2.934 ± 0.574 ops/us                       │
-╰───────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
-│  Type   Role             Score Error   Unit                   │
-│  ------ ---------------- ----- ------- ------                 │
-│  Mounds pollHit          0.380 ± 0.033 ops/us                 │
-│  Mounds pollMiss         0.131 ± 0.184 ops/us                 │
-│  Mounds seventy_five_add 2.722 ± 0.201 ops/us                 │
-│  Mounds twenty_five_poll 0.507 ± 0.184 ops/us                 │
-│  Mounds aggregate        3.229 ± 0.272 ops/us                 │
-╰───────────────────────────────────────────────────────────────╯
-* */

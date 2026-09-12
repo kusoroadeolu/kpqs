@@ -1,15 +1,17 @@
 package io.github.kusoroadeolu.cbs;
 
 
-import io.github.kusoroadeolu.cbs.utils.VHUtils;
+import io.github.kusoroadeolu.cbs.SortedList.SortedBuffer;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static io.github.kusoroadeolu.cbs.ChunkedPQ.Chunk.decodeState;
-import static io.github.kusoroadeolu.cbs.ChunkedPQ.ChunkState.FROZEN;
+import static io.github.kusoroadeolu.cbs.ChunkedPQ.ChunkState.*;
 
 /*
 * A concurrent priority queue which uses an unrolled linked list as its base structure.
@@ -28,135 +30,126 @@ import static io.github.kusoroadeolu.cbs.ChunkedPQ.ChunkState.FROZEN;
 * 1. The state of the chunk (NONE, FREEZING, FROZEN)
 * 2. The frozen index of the chunk (used when freezing the first chunk)
 * 3. The current index of the chunk (index to insert into)
-*
-* To allow for greater concurrency while inserting,
-* insertions into chunks are essentially lock free until a split is needed (i.e. dividing one chunk into two), in which the lock is held
 * */
 public class ChunkedPQ<E> implements PQ<E> {
 
     private static final int CHUNK_CAPACITY = 64;
-    private static final int MIN_F_CHUNK_SIZE = 16;
+    private static final int MIN_FIRST_CHUNK_CAPACITY = 16;
     private final Chunk<E> head;
     private final Comparator<? super E> cmp;
 
 
     public ChunkedPQ() {
         head = new Chunk<>(null, null);
-
-        cmp = (Comparator<? super E>) Comparator.naturalOrder();
+        var c = (Comparator<? super E>) Comparator.naturalOrder();
+        cmp =  c;
     }
 
     @Override
     public boolean offer(E e) {
         var cs = new Chunks<E>();
         var head = this.head;
-        var comparator = cmp;
 
         for (;;) {
-           findNode(e, head, cs, comparator);
+           findNode(e, head, cs, cmp);
 
            var pred = cs.pred;
            var curr = cs.curr;
 
-           if (pred == head) {
+           if (pred == head && curr != null) {
                 if (!insertIntoFirstChunk(e, pred, (FirstChunk<E>) curr)) continue;
                 return true;
            }
 
-           if (curr == null || compare(e, curr.anchor, cmp) < 0) {
+           if (Chunk.decodeState(pred.status) >= FREEZING) continue;
+
+           if (curr == null) {
                Object[] o = new Object[CHUNK_CAPACITY];
+               o[0] = e;
                synchronized (pred) {
-                   if (pred.lpNext() != curr) continue;
+                   var predStatus = pred.lpStatus();
+                   if (decodeState(predStatus) == FROZEN || pred.lpNext() != null) continue;
+                   Chunk<E> chunk;
+                   if (pred == head) chunk = new FirstChunk<>(e, o, 1 ,Chunk.encode(DELETE, 0, 0));
+                   else chunk = new Chunk<>(e, o, Chunk.encode(INSERT, 0, 1));
 
-                   o[0] = e;
-                   var chunk = new Chunk<>(e, o);
                    chunk.spNext(pred.lpNext());
-                   pred.soNext(chunk);
+                   pred.srNext(chunk);
+                   return true;
                }
-
-               continue;
            }
 
-           var status = curr.fetchAndAddStatus();
+           if (Chunk.decodeState(curr.loStatus()) >= FREEZING) continue;
 
-           if (decodeState(status) >= ChunkState.FREEZING) continue;
+           synchronized (pred) {
+               var status = curr.lpStatus();
+               if (pred.lpNext() != curr || decodeState(pred.lpStatus()) == FROZEN || decodeState(status) == FROZEN) continue;
+               var index = Chunk.decodeIndex(status);
+               if (index < CHUNK_CAPACITY) {
+                   curr.spArray(index, e);
+                   curr.spStatus(status + 1);
+               } else {
+                   int capacity = CHUNK_CAPACITY + 1;
+                   Object[] sorted = new Object[capacity];
+                   System.arraycopy(curr.array, 0, sorted, 0, CHUNK_CAPACITY);
+                   sorted[CHUNK_CAPACITY] = e;
+                   sortArray(sorted, cmp);
+                   int half = capacity >>> 1;
+                   int rem = capacity - half;
+                   Object[] o1 = new Object[CHUNK_CAPACITY];
+                   Object[] o2 = new Object[CHUNK_CAPACITY];
 
-           int index = Chunk.decodeIndex(status);
-           if (index < CHUNK_CAPACITY) {
-               curr.spArray(index, e);
-               VarHandle.fullFence();
-               Bitmap bm = null;
-               if (decodeState(curr.lpStatus()) == ChunkState.FREEZING) {
-                   while ((bm = curr.bitmap) != null) {
-                       if (bm.isFrozen(index)) return true;
-                   }
-               } else if (curr.bitmap.isFrozen(index)) return true;
-           } else {
-               //TODO, when implementing poll, when we need to update the status of a chunk to frozen, always hold its lock
+                   System.arraycopy(sorted, 0, o1, 0, half);
+                   System.arraycopy(sorted, half, o2, 0, rem);
 
-               Object[] o = new Object[CHUNK_CAPACITY];
-               byte[] bits = new byte[CHUNK_CAPACITY];
-               synchronized (pred) {
-
-                   //TODO implement split algorithm, pretty simple tbf
-                   var predStatus = pred.lpStatus();
-                   var currStatus = curr.lpStatus();
-                   if (decodeState(predStatus) == FROZEN && decodeState(currStatus) == FROZEN && pred.lpNext() != curr) continue;
+                   var c1 = new Chunk<>((E)o1[half - 1], o1, Chunk.encode(INSERT, 0, half));
+                   var c2 = new Chunk<>((E)o2[rem - 1], o2, Chunk.encode(INSERT, 0, rem));
 
                    synchronized (curr) {
-
+                       curr.status = Chunk.encode(FROZEN, 0, CHUNK_CAPACITY);
+                       var next = curr.lpNext();
+                       c1.spNext(c2);
+                       c2.spNext(next);
+                       pred.srNext(c1);
                    }
 
                }
+
+               return true;
            }
 
         }
     }
 
 
+
     boolean insertIntoFirstChunk(E e, Chunk<E> pred, FirstChunk<E> curr) {
-        Chunk<E> b;
-        boolean createdBuffer = false;
-        if (curr != null) {
-            if (curr.buffer == null) {
-                Object[] o = new Object[CHUNK_CAPACITY];
-                o[0] = e;
-                if(!curr.casBuffer((b = new Chunk<>(e, o, Chunk.encode(ChunkState.BUFFER, 0, 1))))) b = curr.buffer;
-                else createdBuffer = true;
-            } else b = curr.buffer;
-        } else {
-            Object[] o;
-            FirstChunk<E> chunk = new FirstChunk<>(e, (o = new Object[1]), 1);
-            o[0] = e;
-            synchronized (pred) {
-                if (pred.lpNext() != null) return false;
-                pred.soNext(chunk);
-                return true;
-            }
-        }
+        Chunk<E> b = curr.buffer;
+        long status = b.fetchAndAddStatus();
+        int state = decodeState(status);
+        int index = Chunk.decodeIndex(status);
+        if (index < CHUNK_CAPACITY && state < ChunkState.FREEZING) {
+            b.spArray(index, e);
+            VarHandle.fullFence(); //prevent array write from being reordered with bitmap read, also prevents use from using volatile access for both array and bit map write/read
+            //by providing the needed release/acquire visibility
+            Bitmap bitmap;
+            //we can use the bitmap to decide whether to leave or help with freezing
+            if ((bitmap = b.lpBitmap()) != null && bitmap.isFrozen(index)) return true; //linearization point (if true)
+        } else if (state == FROZEN) return false;
 
-        int index = Integer.MAX_VALUE; //bogus value
-
-        if (!createdBuffer) {
-            long status = b.fetchAndAddStatus();
-            int state = decodeState(status);
-            index = Chunk.decodeIndex(status);
-            if (index < CHUNK_CAPACITY && state < ChunkState.FREEZING) {
-                b.svArray(index, e);
-                Bitmap bitmap;
-                if ((bitmap = b.bitmap) != null && bitmap.isFrozen(index)) return true; //linearization point (if true)
-            }
-        }
 
         Thread.yield(); //yield, allow threads to hopefully progress a bit before trying to merge the buffer and first chunk
 
-        long fStatus = freezeFirstChunk(curr);
-        Bitmap bm = null;
+        Bitmap bm;
+        long fStatus = -1;
 
-        if (decodeState(fStatus) == FROZEN) return b.bitmap.isFrozen(index); //linearization point (if true)
-        freezeInsertChunk(b);
+        if (state < FREEZING) {
+            fStatus = freezeFirstChunk(curr);
+            if (decodeState(fStatus) == FROZEN) return b.bitmap.isFrozen(index); //linearization point (if true)
+            freezeBufferChunk(b);
+        }
 
-        if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index)) {
+        if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) != FROZEN) {
             synchronized (pred) {
                 var next = pred.lpNext(); //ideally we could use the buffer's status or first chunk's status but we'd need to perform some math
                 //even though the math is pretty fast, this should be cheaper
@@ -165,33 +158,42 @@ public class ChunkedPQ<E> implements PQ<E> {
                     return bm.isFrozen(index); //if our index is frozen, linearization point
                 }
 
-                int frozenIndex = Chunk.decodeFrozenIdx(fStatus);
+                long s = fStatus == -1 ? curr.status : fStatus;
+
+                int frozenIndex = Chunk.decodeFrozenIdx(s);
                 int remElements = curr.capacity - frozenIndex; //rem elements in the first chunk at the time of freezing
                 int total = remElements + bm.size();
 
-                Object[] sorted = new Object[bm.isFrozen(index) ? total : total + 1];
-                int sortedPtr = 0;
-                for (int i = frozenIndex; i < curr.capacity; ++i) {
-                    sorted[sortedPtr++] = curr.lpArray(i);
-                }
+                SortedList<E> sortedList = new SortedBuffer<>(bm.isFrozen(index) ? total : ++total, cmp);
 
-                var bits = bm.bits;
-                for (int i = 0; i < CHUNK_CAPACITY; ++i) {
-                    if (bits[i] == Bitmap.CLAIMED) {
-                        sorted[sortedPtr++] = b.lpArray(i);
+                readRemElementsInFChunk(curr, sortedList, frozenIndex);
+                readClaimedBitmapIndices(b, sortedList, bm);
+
+                if (!bm.isFrozen(index)) sortedList.add(e);
+
+                Object[] sorted = sortedList.toArray();
+                if (total > CHUNK_CAPACITY) {
+                    int half = total >>> 1;
+                    int rem = total - half;
+                    Object[] fArr = new Object[half];
+                    Object[] other = new Object[CHUNK_CAPACITY];
+                    System.arraycopy(sorted, 0, fArr, 0, half);
+                    System.arraycopy(sorted, half, other, 0, rem);
+                    var fs = new FirstChunk<>((E)fArr[half - 1], fArr, half ,Chunk.encode(DELETE, 0, 0));
+                    var c = new Chunk<>((E)other[rem - 1], other, Chunk.encode(INSERT, 0, rem));
+                    synchronized (curr) {
+                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                        c.spNext(curr.lpNext());
+                        fs.spNext(c);
+                        pred.srNext(fs);
                     }
-                }
-
-                if (!bm.isFrozen(index)) sorted[sortedPtr + 1] = e;
-
-
-                sortArray(sorted, cmp);
-                var fs = new FirstChunk<>((E) sorted[0], sorted, total);
-
-                synchronized (curr) {
-                    curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
-                    fs.spNext(curr.lpNext());
-                    pred.soNext(fs);
+                } else {
+                    var fs = new FirstChunk<>(sortedList.peekLast(), sorted, total, Chunk.encode(DELETE, 0, 0));
+                    synchronized (curr) {
+                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                        fs.spNext(curr.lpNext());
+                        pred.srNext(fs);
+                    }
                 }
 
                 return true; //if our index is frozen, linearization point
@@ -220,8 +222,8 @@ public class ChunkedPQ<E> implements PQ<E> {
     }
 
 
-    void freezeInsertChunk(Chunk<E> chunk) {
-        chunk.bitwiseOr((long) ChunkState.FREEZING << 61);
+    long freezeBufferChunk(Chunk<E> chunk) {
+       return chunk.bitwiseOr((long) ChunkState.FREEZING << Chunk.BITS_FOR_STATE);
     }
 
     long freezeFirstChunk(FirstChunk<E> chunk) {
@@ -232,8 +234,7 @@ public class ChunkedPQ<E> implements PQ<E> {
             if (state >= ChunkState.FREEZING) return status;
 
             int index = Chunk.decodeIndex(status);
-            int frozenIndex = Math.max(chunk.capacity, index);
-
+            int frozenIndex = Math.min(index, chunk.capacity);
 
             if (chunk.casStatus(status, (status = Chunk.encode(ChunkState.FREEZING, frozenIndex, index)))) return status;
         }
@@ -241,7 +242,145 @@ public class ChunkedPQ<E> implements PQ<E> {
 
     @Override
     public E poll() {
-        return null;
+        var pred = this.head;
+
+        for (;;) {
+            var curr = (FirstChunk<E>) pred.laNext();
+            if (curr == null) return null;
+
+            var status = curr.fetchAndAddStatus();
+            int index = Chunk.decodeIndex(status);
+            int state = Chunk.decodeState(status);
+            int capacity = curr.capacity;
+            if (index < capacity && state < FREEZING) return curr.lvArray(index);
+
+            if (state == FROZEN) continue;
+
+            var b = curr.buffer;
+            long fStatus = -1;
+
+            if (state < FREEZING) {
+                fStatus = freezeFirstChunk(curr);
+                freezeBufferChunk(b);
+            }
+
+            Bitmap bm;
+
+            if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index)) {
+                synchronized (pred) {
+                    var next = pred.lpNext(); //ideally we could use the buffer's status or first chunk's status but we'd need to perform some math
+                    //even though the math is pretty fast, this should be cheaper
+                    if (next != curr) { //first chunk has been replaced
+                        //still need to recheck cause we might not have inserted into the buffer cause our index was out of bounds
+                        continue;
+                    }
+
+                    long s = fStatus == -1 ? curr.status : fStatus;
+
+                    int frozenIndex = Chunk.decodeFrozenIdx(s);
+                    int remElements = curr.capacity - frozenIndex; //rem elements in the first chunk at the time of freezing
+                    int total = remElements + bm.size();
+
+                    //if total < min cap, we need to try and refill from the next chunk, this is pretty expensive
+                    if (total < MIN_FIRST_CHUNK_CAPACITY) {
+                        fillFromList: synchronized (curr) {
+                            var n = curr.lpNext();
+
+                            if (n == null) {
+                                if (total == 0) {
+                                    pred.srNext(null);
+                                    return null;
+                                } else break fillFromList;
+                            }
+
+                            int size = Chunk.decodeIndex(n.lpStatus());
+                            total += size;
+
+                            if (total == 0) {
+                                pred.srNext(null);
+                                return null;
+                            }
+
+                            SortedList<E> sortedList = new SortedBuffer<>(total, cmp);
+
+                            readElementsInChunk(n, sortedList, size);
+                            readRemElementsInFChunk(curr, sortedList, frozenIndex);
+                            readClaimedBitmapIndices(b, sortedList, bm);
+
+                            var sorted = sortedList.toArray();
+                            var fs = new FirstChunk<>(sortedList.peekLast(), sorted, total, Chunk.encode(DELETE, 0, 1));
+                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+
+                            synchronized (n) {
+                                n.status = Chunk.encode(FROZEN, 0, size);
+                                fs.spNext(n.lpNext());
+                                pred.srNext(fs);
+                            }
+
+                            return (E) sorted[0];
+                        }
+                    }
+
+                    SortedList<E> sortedList = new SortedBuffer<>(total, cmp);
+
+                    readRemElementsInFChunk(curr, sortedList, frozenIndex);
+                    readClaimedBitmapIndices(b, sortedList, bm);
+
+                    Object[] sorted = sortedList.toArray();
+
+                    if (total > CHUNK_CAPACITY) {
+                        int half = total >>> 1;
+                        int rem = total - half;
+                        Object[] fArr = new Object[half];
+                        Object[] other = new Object[CHUNK_CAPACITY];
+
+                        System.arraycopy(sorted, 0, fArr, 0, half);
+                        System.arraycopy(sorted, half, other, 0, rem);
+
+                        var fs = new FirstChunk<>((E)fArr[half - 1], fArr, half ,Chunk.encode(DELETE, 0, 1));
+                        var c = new Chunk<>((E)other[rem - 1], other, Chunk.encode(INSERT, 0, rem));
+                        synchronized (curr) {
+                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                            c.spNext(curr.lpNext());
+                            fs.spNext(c);
+                            pred.srNext(fs);
+                            return (E) fArr[0];
+                        }
+                    } else {
+                        var fs = new FirstChunk<>(sortedList.peekLast(), sorted, total, Chunk.encode(DELETE, 0, 1));
+                        synchronized (curr) {
+                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                            fs.spNext(curr.lpNext());
+                            pred.srNext(fs);
+                            return (E) sorted[0];
+                        }
+                    }
+
+                }
+            }
+        }
+    }
+
+    void readElementsInChunk(Chunk<E> chunk, SortedList<E> list, int index) {
+        for (int i = 0; i < index; ++i) {
+            list.add(chunk.lpArray(i));
+        }
+    }
+
+    void readRemElementsInFChunk(FirstChunk<E> chunk, SortedList<E> list, int frozenIndex) {
+        for (int i = frozenIndex; i < chunk.capacity; ++i) {
+            list.add(chunk.lpArray(i));
+        }
+    }
+
+    void readClaimedBitmapIndices(Chunk<E> buffer, SortedList<E> list, Bitmap bm) {
+        var bits = bm.bits;
+        for (int i = 0; i < CHUNK_CAPACITY && bm.size() > 0; ++i) {
+            if (bits[i] == Bitmap.CLAIMED) {
+                var value = buffer.lpArray(i);
+                list.add(value);
+            }
+        }
     }
 
     @Override
@@ -251,7 +390,21 @@ public class ChunkedPQ<E> implements PQ<E> {
 
     @Override
     public int size() {
-        return 0;
+        var head = this.head;
+        Chunk<E> curr = head;
+        int size = 0;
+        while (true) {
+            synchronized (curr) {
+                var n = curr.lpNext();
+                if (n == null) return size;
+                int index = Chunk.decodeIndex(n.lpStatus());
+                if (curr == head) {
+                    size += ((FirstChunk<E>)n).capacity - index;
+                } else size += index;
+                curr = n;
+            }
+
+        }
     }
 
     @Override
@@ -259,20 +412,21 @@ public class ChunkedPQ<E> implements PQ<E> {
         return false;
     }
 
+    //Filler clear methods, just for benchmarks rn
     @Override
     public void clear() {
-
+        synchronized (head) {
+            head.srNext(null);
+        }
     }
 
-    static <T>void findNode(T t, Chunk<T> left, Chunks<T> chunks, Comparator<? super T> comparator) {
+    static <T> void findNode(T t, Chunk<T> left, Chunks<T> chunks, Comparator<? super T> comparator) {
         Chunk<T> pred = left;
-        Chunk<T> curr = pred.loNext();
-        while (curr != null) {
-            Chunk<T> next = curr.loNext();
-            if (next == null || compare(t, next.anchor, comparator) < 0) break;
-            pred = curr;
-            curr = next;
+        Chunk<T> curr = pred.laNext();
 
+        while (curr != null && compare(t, curr.anchor, comparator) > 0) {
+            pred = curr;
+            curr = curr.laNext();
         }
 
         chunks.pred = pred; chunks.curr = curr;
@@ -284,6 +438,10 @@ public class ChunkedPQ<E> implements PQ<E> {
 
     static <T>int compare(T t, T other, Comparator<? super T> cmp) {
         return cmp == null ? ((Comparable<T>)t).compareTo(other) : cmp.compare(t, other);
+    }
+
+    public String toString() {
+        return head.toString();
     }
 
 
@@ -306,22 +464,18 @@ public class ChunkedPQ<E> implements PQ<E> {
     }
 
     static class FirstChunk<T> extends Chunk<T>{
-        volatile Chunk<T> buffer;
+        final Chunk<T> buffer;
         final int capacity;
-        private static final VarHandle BUFFER = VHUtils.fieldVarHandle(MethodHandles.lookup(), ChunkedPQ.class, "buffer", Chunk.class);
 
-        public FirstChunk(T anchor, Object[] array, int capacity) {
-            super(anchor, array);
-            this.capacity = capacity;
-        }
-
-        public FirstChunk(T anchor, Object[] array, long status, int capacity) {
+        public FirstChunk(T anchor, Object[] array, int capacity, long status) {
             super(anchor, array, status);
             this.capacity = capacity;
+            buffer = new Chunk<>(null, new Object[CHUNK_CAPACITY], Chunk.encode(BUFFER, 0, 0));
         }
 
-        boolean casBuffer(Chunk<T> to) {
-            return BUFFER.compareAndSet(this, null, to);
+        @Override
+        public String toString() {
+            return "Anchor: %s Buffer: %s, Array: %s \n %s".formatted(anchor, Chunk.formatArray(buffer.array), Chunk.formatArray(array), next);
         }
     }
 
@@ -344,6 +498,20 @@ public class ChunkedPQ<E> implements PQ<E> {
             this.status = status;
         }
 
+        @Override
+        public String toString() {
+            if (array == null) return "(sentinel) \n %s".formatted(next);
+            return "Anchor: %s Array: %s \n %s".formatted(anchor, formatArray(array), next);
+        }
+
+
+        static String formatArray(Object[] arr) {
+            return Arrays.stream(arr)
+                    .filter(Objects::nonNull)
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(", ", "[", "]"));
+        }
+
         boolean casBitmap(Bitmap bitmap) {
            return F_BITMAP.compareAndSet(this, null, bitmap);
         }
@@ -352,12 +520,24 @@ public class ChunkedPQ<E> implements PQ<E> {
             return (long) STATUS.get(this);
         }
 
+        long loStatus() {
+            return (long) STATUS.getOpaque(this);
+        }
+
+        void spStatus(long status) {
+            STATUS.set(this, status);
+        }
+
+        Bitmap lpBitmap() {
+            return (Bitmap) F_BITMAP.get(this);
+        }
+
         boolean casStatus(long from, long to) {
             return STATUS.compareAndSet(this, from, to);
         }
 
-        void bitwiseOr(long value) {
-            STATUS.getAndBitwiseOr(this, value);
+        long bitwiseOr(long value) {
+           return (long) STATUS.getAndBitwiseOr(this, value);
         }
 
         void svArray(int idx, T t) {
@@ -377,7 +557,7 @@ public class ChunkedPQ<E> implements PQ<E> {
         }
 
 
-        void soNext(Chunk<T> chunk) {
+        void srNext(Chunk<T> chunk) {
             NEXT.setRelease(this, chunk);
         }
 
@@ -386,7 +566,7 @@ public class ChunkedPQ<E> implements PQ<E> {
         }
 
 
-        public Chunk<T> loNext() {
+        public Chunk<T> laNext() {
             return (Chunk<T>) NEXT.getAcquire(this);
         }
 
@@ -436,17 +616,74 @@ public class ChunkedPQ<E> implements PQ<E> {
         }
 
     }
-
-
-    static void main() {
-        Chunk<Integer> chunk = new Chunk<>(null, null);
-        Chunk.STATUS.set(chunk, Chunk.encode(ChunkState.BUFFER, 0, 64));
-        System.out.println("Initial: " + Chunk.STATUS.get(chunk));
-        Chunk.STATUS.getAndBitwiseOr(chunk, (long) ChunkState.FREEZING << 61);
-        System.out.println("Later: " + Chunk.STATUS.get(chunk));
-        System.out.println("State: " + decodeState((long)Chunk.STATUS.get(chunk)));
-        Chunk.STATUS.getAndBitwiseOr(chunk, (long) ChunkState.FREEZING << 61);
-        System.out.println("Later 1: " + Chunk.STATUS.get(chunk));
-        System.out.println("State 1: " + decodeState((long)Chunk.STATUS.get(chunk)));
-    }
 }
+
+
+
+
+/*
+*            //Magnitudes slower than the approach above, above is much simpler too, even though this provides a decent amount of progress cause we don't hold locks during normal inserts
+//           var status = curr.fetchAndAddStatus();
+//
+//           if (decodeState(status) >= ChunkState.FREEZING) continue;
+//
+//           int index = Chunk.decodeIndex(status);
+//           if (index < CHUNK_CAPACITY) {
+//               curr.spArray(index, e);
+//               VarHandle.fullFence();
+//               if (decodeState(curr.lpStatus()) >= ChunkState.FREEZING) {
+//                   Bitmap bm;
+//                   while ((bm = curr.bitmap) != null) if (bm.isFrozen(index)) return true;
+//               } else return true;
+//
+//           } else {
+//               Thread.yield();
+//               byte[] bits = new byte[CHUNK_CAPACITY];
+//               Object[] sorted = new Object[CHUNK_CAPACITY + 1];
+//
+//               synchronized (pred) {
+//                   var predStatus = pred.lpStatus();
+//                   var currStatus = curr.lpStatus();
+//                   if (decodeState(predStatus) == FROZEN || decodeState(currStatus) == FROZEN || pred.lpNext() != curr) continue;
+//
+//                   long freezingStatus = freezeInsertChunk(curr);
+//
+//                   int size = 0;
+//                   E elem;
+//
+//                   for (int i = 0; i < CHUNK_CAPACITY; ++i) {
+//                       if ((elem = curr.lvArray(i)) != null) {
+//                           bits[i] = Bitmap.CLAIMED;
+//                           sorted[size++] = elem;
+//                       }
+//                   }
+//
+//                   curr.bitmap = new Bitmap(bits, 0);
+//
+//                   sorted[size++] = e;
+//
+//                   sortArray(sorted, cmp);
+//                   int half = size >>> 1;
+//                   int rem = size - half;
+//                   Object[] o1 = new Object[CHUNK_CAPACITY];
+//                   Object[] o2 = new Object[CHUNK_CAPACITY];
+//
+//                   System.arraycopy(sorted, 0, o1, 0, half);
+//                   System.arraycopy(sorted, rem, o2, 0, size - rem);
+//
+//                   var c1 = new Chunk<>((E)o1[half - 1], o1, Chunk.encode(INSERT, 0, half));
+//                   var c2 = new Chunk<>((E)o2[size - rem - 1], o2, Chunk.encode(INSERT, 0, rem));
+//
+//                   synchronized (curr) {
+//                        curr.status = Chunk.encode(FROZEN, 0, Chunk.decodeIndex(freezingStatus));
+//                        var next = curr.lpNext();
+//                        c1.spNext(c2);
+//                        c2.spNext(next);
+//                        pred.srNext(c1);
+//                   }
+//
+//                   return true;
+//
+//               }
+//           }
+* */

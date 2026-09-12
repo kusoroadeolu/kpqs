@@ -35,7 +35,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({PQFactory.MOUNDS, PQFactory.PBQ})
+    @Param({PQFactory.CBQ, PQFactory.PBQ})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -55,7 +55,7 @@ public class PhaseBench {
         int producerCount =  workerCount;
         int consumerCount = workerCount;
 
-        queue = PQFactory.createPQ(type, MiscUtils.defaultCmp());
+        queue = PQFactory.createPQ(type);
 
         producers = new Producer[producerCount];
 
@@ -238,13 +238,4 @@ public class PhaseBench {
         }
     }
 }
-
-/*
-╭──────── io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ────────╮
-│  ConsumerProducerThreadCount Type                  Score    Error      Unit   │
-│  --------------------------- --------------------- -------- ---------- -----  │
-│  8                           Mounds                9826.886 ± 1378.484 us/op  │
-│  8                           PriorityBlockingQueue 1463.452 ± 78.977   us/op  │
-╰───────────────────────────────────────────────────────────────────────────────╯
-* */
 
