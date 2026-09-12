@@ -30,7 +30,7 @@ public class MixedThrptBench {
     @Setup(Level.Trial)
     public void setup() {
         queue = PQFactory.createPQ(type);
-        for (int i = 0; i < 500_000; ++i) queue.offer(nextInt());
+        //for (int i = 0; i < 500_000; ++i) queue.offer(nextInt());
     }
 
     @TearDown(Level.Iteration)
@@ -56,25 +56,25 @@ public class MixedThrptBench {
     }
 
 
-    @Group("ratio_75_25")
-    @GroupThreads(6)
-    @Benchmark
-    public void seventy_five_add(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
-    }
-
-    @Group("ratio_75_25")
-    @GroupThreads(2)
-    @Benchmark
-    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
-        Integer result = queue.poll();
-        bh.consume(result);
-        if (result == null) {
-            counters.pollMiss++;
-        } else {
-            counters.pollHit++;
-        }
-    }
+//    @Group("ratio_75_25")
+//    @GroupThreads(6)
+//    @Benchmark
+//    public void seventy_five_add(Blackhole bh) {
+//        bh.consume(queue.offer(nextInt()));
+//    }
+//
+//    @Group("ratio_75_25")
+//    @GroupThreads(2)
+//    @Benchmark
+//    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
+//        Integer result = queue.poll();
+//        bh.consume(result);
+//        if (result == null) {
+//            counters.pollMiss++;
+//        } else {
+//            counters.pollHit++;
+//        }
+//    }
 
     @Group("ratio_50_50")
     @GroupThreads(4)
