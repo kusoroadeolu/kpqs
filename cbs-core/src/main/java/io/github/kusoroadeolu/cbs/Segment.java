@@ -76,14 +76,18 @@ class SegmentFields<E> extends SegmentLPad {
                         VarHandle.acquireFence();
                         //we're assuming the tail is either already unlinked (in the local list) or the tail is alive
                         //pred should never be a tail's live predecessor if (leader list size == max) with one exception, see below
-                        var prev = findTailPredecessor(tail);
+                        var prev = findLiveTailPredecessor();
 
                         //our leader list size synced up with a far earlier read
-                        if (prev == pred ) return true; // no need to pull down
+                        if (prev == pred) {
+                            incrementLeaderListSize();
+                            return true; // no need to pull down
+                        }
 
                         if (prev.localNext == null || tail.isMarked()) { //tail has been unlinked a while now, just wasn't updated
                             this.tail = prev;
                             linkNext(prev, null);
+                            if (tail.isMarked()) incrementLeaderListSize();
                             return true;
                         }
 
@@ -122,7 +126,7 @@ class SegmentFields<E> extends SegmentLPad {
     void addToLeaderList(Node<E> node) {
         E e = node.value;
         for (;;) {
-            Node<E> start = findPredecessor(e);
+            Node<E> start = findLivePredecessor(e);
             if (list.addFrom((start == pred) ? null : start, node)) {
                 var next = start.localNext;
                 linkNext(start, node); //start -> node
@@ -159,7 +163,7 @@ class SegmentFields<E> extends SegmentLPad {
 
     //Scans the local list for a good starting point in the leader list, while detaching (locally) dead nodes we come across
     //Trying to mimic skip list behavior here without an actual shared skip list (which leader queue could be) but more memory
-    Node<E> findPredecessor(E e) {
+    Node<E> findLivePredecessor(E e) {
         var prev = this.pred;
 
         if (prev.localNext == null) return prev;
@@ -181,8 +185,9 @@ class SegmentFields<E> extends SegmentLPad {
     }
 
     //Similar to find predecessor, just that we try to avoid unlinking the tail
-    Node<E> findTailPredecessor(Node<E> n) {
+    Node<E> findLiveTailPredecessor() {
         var prev = this.pred;
+        var n = this.tail;
 
         for (;;) {
             Node<E> node = prev.localNext;

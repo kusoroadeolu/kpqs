@@ -33,12 +33,10 @@ class PollFieldPad {
 
 class PollFields extends PollFieldPad {
 
-    final Hopper<PollRequest> hopper;
-    final IdleStrategy strategy;
+    final Object lock;
 
     PollFields() {
-        hopper = new Hopper<>();
-        strategy = IdleStrategy.spin();
+        lock = new Object();
     }
 
     static class PollRequest extends HopperItem<PollRequest> {
@@ -146,52 +144,77 @@ public class PIPQ<E> extends KLPad implements RPQ<E> {
     }
 
     public E poll() {
-        var h =  hopper;
         var list = this.list;
         var segments = this.segments;
-        PollRequest request = new PollRequest();
-        boolean combine = h.add(request);
-        if (combine) {
-            var items = h.dump(request);
-            try {
-                while (items.hasNext()) {
-                    var item = items.next();
-                    var polled = list.poll();
-
-                    if (polled == null) {
-                        item.value = null;
-                        item.apply();
-                        continue;
-                    }
-
-                    int id = polled.id;
-                    var segment = segments[id];
-                    var leaderListSize = segment.decrementLeaderListSize();
-
-                    item.id = id;
-                    item.size = leaderListSize;
-                    item.value = polled.value;
-                    item.apply();
-
-                    if (leaderListSize <= PIPQConstants.MIN_LEADER_LIST_ELEMS) forceUpsert(segment);
-                }
-
-                return (E) request.value;
-            }finally {
-                h.unlock();
+        int leaderListSize = -1;
+        int id = -1;
+        E value;
+        //The simple lock approach is actually much faster and has a lower latency combined to the combining approach
+        synchronized (lock) {
+            var polled = list.poll();
+            if (polled == null) return null;
+            leaderListSize = segments[(id = polled.id)].decrementLeaderListSize();
+            if (leaderListSize <= PIPQConstants.MIN_LEADER_LIST_ELEMS) {
+                forceUpsert(segments[id]);
+                return polled.value;
             }
+
+            value = polled.value;
         }
 
-        var strategy = this.strategy;
-        int spins = 0;
-        while (!request.isApplied()) {
-            spins = strategy.idle(spins);
+
+        if (leaderListSize <= PIPQConstants.UPSERT_THRESHOLD) {
+            tryUpsert(segments[id]);
         }
 
-        E val = (E) request.value;
-        int size = request.size;
-        if (size != -1 && size <= PIPQConstants.UPSERT_THRESHOLD) tryUpsert(segments[request.id]);
-        return val;
+        return value;
+
+//        var h =  hopper;
+//        var list = this.list;
+//        var segments = this.segments;
+//        PollRequest request = new PollRequest();
+//        boolean combine = h.add(request);
+//        if (combine) {
+//            var items = h.dump(request);
+//            try {
+//                while (items.hasNext()) {
+//                    var item = items.next();
+//                    var polled = list.poll();
+//
+//                    if (polled == null) {
+//                        item.value = null;
+//                        item.apply();
+//                        continue;
+//                    }
+//
+//                    int id = polled.id;
+//                    var segment = segments[id];
+//                    var leaderListSize = segment.decrementLeaderListSize();
+//
+//                    item.id = id;
+//                    item.size = leaderListSize;
+//                    item.value = polled.value;
+//                    item.apply();
+//
+//                    if (leaderListSize <= PIPQConstants.MIN_LEADER_LIST_ELEMS) forceUpsert(segment);
+//                }
+//
+//                return (E) request.value;
+//            }finally {
+//                h.unlock();
+//            }
+//        }
+//
+//        var strategy = this.strategy;
+//        int spins = 0;
+//        while (!request.isApplied()) {
+//            spins = strategy.idle(spins);
+//        }
+//
+//        E val = (E) request.value;
+//        int size = request.size;
+//        if (size != -1 && size <= PIPQConstants.UPSERT_THRESHOLD) tryUpsert(segments[request.id]);
+//        return val;
     }
 
     void forceUpsert(Segment<E> segment) {

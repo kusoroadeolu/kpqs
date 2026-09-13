@@ -25,7 +25,6 @@ public class MixedThrptBench {
     private String type;
 
     final static int RANGE = 1_000_000;
-    final static int JITTER_RANGE = 100;
 
 
     @Setup(Level.Trial)
@@ -56,31 +55,12 @@ public class MixedThrptBench {
         }
     }
 
-    @State(Scope.Thread)
-    public static class Sequence {
-        int i;
-
-
-        @Setup(Level.Iteration)
-        public void reset() {
-            i = 0;
-        }
-
-        int nextInt() {
-            return i++ + jitter();
-        }
-
-        int jitter() {
-            return ThreadLocalRandom.current().nextInt(0, JITTER_RANGE);
-        }
-
-    }
 
     @Group("ratio_75_25")
     @GroupThreads(6)
     @Benchmark
-    public void seventy_five_add(Blackhole bh, Sequence sequence) {
-        bh.consume(queue.offer(sequence.nextInt()));
+    public void seventy_five_add(Blackhole bh) {
+        bh.consume(queue.offer(nextInt()));
     }
 
     @Group("ratio_75_25")
@@ -99,8 +79,8 @@ public class MixedThrptBench {
     @Group("ratio_50_50")
     @GroupThreads(4)
     @Benchmark
-    public void fifty_add(Blackhole bh, Sequence sequence) {
-        bh.consume(queue.offer(sequence.nextInt()));
+    public void fifty_add(Blackhole bh) {
+        bh.consume(queue.offer(nextInt()));
     }
 
     @Group("ratio_50_50")
