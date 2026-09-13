@@ -1,5 +1,6 @@
 package io.github.kusoroadeolu.cbs.rmq;
 
+import io.github.kusoroadeolu.cbs.Segment;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -1,6 +1,5 @@
-package io.github.kusoroadeolu.cbs.rmq;
+package io.github.kusoroadeolu.cbs;
 
-import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 
 import java.util.Comparator;
