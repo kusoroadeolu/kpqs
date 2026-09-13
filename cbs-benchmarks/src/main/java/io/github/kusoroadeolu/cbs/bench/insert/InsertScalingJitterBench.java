@@ -5,6 +5,10 @@ import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
+import org.openjdk.jmh.runner.RunnerException;
+import org.openjdk.jmh.runner.options.Options;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -89,6 +93,16 @@ public class InsertScalingJitterBench {
         boolean offer = queue.offer(sequence.nextInt());
         bh.consume(offer);
     }
+
+    static class BenchRunner {
+        static void main() throws RunnerException {
+            Options options = new OptionsBuilder()
+                    .include(InsertScalingJitterBench.class.getSimpleName())
+                    .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-mpmc-pq")
+                    .build();
+            new org.openjdk.jmh.runner.Runner(options).run();
+        }
+    }
 }
 
 /*
@@ -119,25 +133,25 @@ public class InsertScalingJitterBench {
 * ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
 │  Type   Score  Error   Unit                                                         │
 │  ------ ------ ------- ------                                                       │
-│  KQueue 39.887 ± 2.022 ops/us                                                       │
+│  PIPQ 39.887 ± 2.022 ops/us                                                       │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
 │  Type   Score  Error   Unit                                                        │
 │  ------ ------ ------- ------                                                      │
-│  KQueue 35.239 ± 2.091 ops/us                                                      │
+│  PIPQ 35.239 ± 2.091 ops/us                                                      │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
 │  Type   Score  Error   Unit                                                       │
 │  ------ ------ ------- ------                                                     │
-│  KQueue 38.337 ± 2.061 ops/us                                                     │
+│  PIPQ 38.337 ± 2.061 ops/us                                                     │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
 │  Type   Score  Error   Unit                                                       │
 │  ------ ------ ------- ------                                                     │
-│  KQueue 27.676 ± 1.360 ops/us                                                     │
+│  PIPQ 27.676 ± 1.360 ops/us                                                     │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 *

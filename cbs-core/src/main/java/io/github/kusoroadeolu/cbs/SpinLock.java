@@ -1,4 +1,4 @@
-package io.github.kusoroadeolu.cbs.rmq;
+package io.github.kusoroadeolu.cbs;
 
 import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
@@ -36,6 +36,24 @@ public class SpinLock implements Lock {
         }
     }
 
+    public boolean boundedTryLock() {
+        for (int spins = 0; !canAcquire(); ++spins) {
+            if (canAcquire()) return true;
+            if (canAcquire()) return true;
+            if (canAcquire()) return true;
+            if (canAcquire()) return true;
+            if (canAcquire()) return true;
+            if (canAcquire()) return true;
+            if (canAcquire()) return true;
+            if (canAcquire()) return true;
+
+            if (spins < SPINS_BEFORE_PARK) Thread.onSpinWait();
+            else return false;
+        }
+
+        return true;
+    }
+
     public void unlock() {
         STATE.setRelease(this, FREE);
     }
@@ -47,8 +65,8 @@ public class SpinLock implements Lock {
     }
 
     //racy hint, don't trust this
-    public boolean isHeld() {
-        return loState() != FREE;
+    public boolean isFree() {
+        return loState() == FREE;
     }
 
     @Override
@@ -71,7 +89,7 @@ public class SpinLock implements Lock {
     }
 
     public boolean canAcquire() {
-        return loState() == FREE && (int) STATE.getAndAdd(this, 1) == FREE;
+        return isFree() && (int) STATE.getAndAddAcquire(this, 1) == FREE;
     }
 
 

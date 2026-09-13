@@ -28,12 +28,17 @@ public interface IdleStrategy {
     }
 
     class SpinStrategy implements IdleStrategy {
-        private static final int MAX_SPINS = 1024;
+        private static final int SPINS_PER_YIELD = 16;
 
         @Override
         public int idle(int idleCount) {
-            Thread.onSpinWait();
-            return idleCount;
+            if (idleCount < SPINS_PER_YIELD) {
+                Thread.onSpinWait();
+                return ++idleCount;
+            }
+
+            Thread.yield();
+            return 0;
         }
     }
 }

@@ -114,18 +114,18 @@ public class MixedThrptBench {
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.full_insert ─╮
 │  Type                  Score  Error   Unit                     │
 │  --------------------- ------ ------- ------                   │
-│  KQueue                31.616 ± 2.375 ops/us                   │
+│  PIPQ                31.616 ± 2.375 ops/us                   │
 │  PriorityBlockingQueue 14.472 ± 0.621 ops/us                   │
 ╰────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
 │  Type                  Role       Score  Error   Unit          │
 │  --------------------- ---------- ------ ------- ------        │
-│  KQueue                fifty_add  22.384 ± 2.047 ops/us        │
-│  KQueue                fifty_poll 0.229  ± 0.032 ops/us        │
-│  KQueue                pollHit    0.230  ± 0.033 ops/us        │
-│  KQueue                pollMiss   0.001  ± 0.002 ops/us        │
-│  KQueue                aggregate  22.614 ± 2.035 ops/us        │
+│  PIPQ                fifty_add  22.384 ± 2.047 ops/us        │
+│  PIPQ                fifty_poll 0.229  ± 0.032 ops/us        │
+│  PIPQ                pollHit    0.230  ± 0.033 ops/us        │
+│  PIPQ                pollMiss   0.001  ± 0.002 ops/us        │
+│  PIPQ                aggregate  22.614 ± 2.035 ops/us        │
 │  PriorityBlockingQueue fifty_add  4.519  ± 0.899 ops/us        │
 │  PriorityBlockingQueue fifty_poll 6.861  ± 2.437 ops/us        │
 │  PriorityBlockingQueue pollHit    4.415  ± 0.999 ops/us        │
@@ -136,11 +136,11 @@ public class MixedThrptBench {
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
 │  Type                  Role             Score  Error   Unit    │
 │  --------------------- ---------------- ------ ------- ------  │
-│  KQueue                pollHit          0.105  ± 0.014 ops/us  │
-│  KQueue                pollMiss         0.000  ± 0.000 ops/us  │
-│  KQueue                seventy_five_add 26.379 ± 1.776 ops/us  │
-│  KQueue                twenty_five_poll 0.105  ± 0.014 ops/us  │
-│  KQueue                aggregate        26.484 ± 1.780 ops/us  │
+│  PIPQ                pollHit          0.105  ± 0.014 ops/us  │
+│  PIPQ                pollMiss         0.000  ± 0.000 ops/us  │
+│  PIPQ                seventy_five_add 26.379 ± 1.776 ops/us  │
+│  PIPQ                twenty_five_poll 0.105  ± 0.014 ops/us  │
+│  PIPQ                aggregate        26.484 ± 1.780 ops/us  │
 │  PriorityBlockingQueue pollHit          2.506  ± 0.112 ops/us  │
 │  PriorityBlockingQueue pollMiss         0.001  ± 0.003 ops/us  │
 │  PriorityBlockingQueue seventy_five_add 3.015  ± 0.140 ops/us  │
@@ -171,7 +171,7 @@ public class MixedThrptBench {
  *     * the item and then actually notify the waiters. Ideally this is a key flaw in this design, though it doesnt matter too much as it's optimized for
  *     * scaling insert thrpt and high insert thrpt under contention
  *     *
- *     * Right now, trying to lock a segment (while probing) takes about 40% of the time in KQueue#add, which means threads are more frequently landing on segments
+ *     * Right now, trying to lock a segment (while probing) takes about 40% of the time in PIPQ#add, which means threads are more frequently landing on segments
  *     * which are locked. Right now I'm using a naive strategy to calculate the start index to start probing from which leads to more collisions ideally.
  *     * Next goal is to find a good hash to calculate a good start index and probably also, a better probing mechanism
  *     *

@@ -27,7 +27,7 @@ public class SteadyStateBench {
 
     private RPQ<Integer> queue;
 
-    final static int STEADY_STATE_SIZE = 132_000;
+    final static int STEADY_STATE_SIZE = 10_000;
     final static int RANGE = 1_000_000;
 
 
@@ -35,9 +35,11 @@ public class SteadyStateBench {
     public void setup() {
         queue = RPQFactory.createRPQ(type, STEADY_STATE_SIZE);
 
+        System.out.println("Here");
         for (int i = 0; i < STEADY_STATE_SIZE; i++) {
             queue.offer(ThreadLocalRandom.current().nextInt(0, RANGE));
         }
+        System.out.println("Done");
     }
 
     @AuxCounters(AuxCounters.Type.OPERATIONS)
@@ -113,7 +115,7 @@ public class SteadyStateBench {
 ╭──────────────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ─────────────────────────────────╮
 │  Type                  Score Error   P00   P50   P90   P95   P99     P99.9   P99.99   P99.999  P99.9999  Max       Unit   │
 │  --------------------- ----- ------- ----- ----- ----- ----- ------- ------- -------- -------- --------- --------- -----  │
-│  KQueue                6.709 ± 0.080 0.000 0.600 3.500 4.400 177.152 426.496 2857.569 6011.777 9863.168  12107.776 us/op  │
+│  PIPQ                6.709 ± 0.080 0.000 0.600 3.500 4.400 177.152 426.496 2857.569 6011.777 9863.168  12107.776 us/op  │
 │  PriorityBlockingQueue 3.449 ± 0.030 0.100 0.200 0.300 1.000 96.384  166.656 213.760  866.304  14020.099 14483.456 us/op  │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 

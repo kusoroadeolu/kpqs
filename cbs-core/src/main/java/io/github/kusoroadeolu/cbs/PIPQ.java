@@ -1,9 +1,14 @@
-package io.github.kusoroadeolu.cbs.rmq;
+package io.github.kusoroadeolu.cbs;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.hopper.Hopper;
+import io.github.kusoroadeolu.cbs.hopper.HopperItem;
+import io.github.kusoroadeolu.cbs.hopper.IdleStrategy;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
+import io.github.kusoroadeolu.cbs.utils.PIPQConstants;
 
+import java.util.Comparator;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.offset;
@@ -28,12 +33,20 @@ class PollFieldPad {
 
 class PollFields extends PollFieldPad {
 
-    final Object lock;
+    final Hopper<PollRequest> hopper;
+    final IdleStrategy strategy;
 
     PollFields() {
-        lock = new Object();
+        hopper = new Hopper<>();
+        strategy = IdleStrategy.spin();
     }
 
+    static class PollRequest extends HopperItem<PollRequest> {
+        int id = -1;
+        int size = -1;
+        boolean upsert;
+        Object value;
+    }
 }
 
 class KLPad extends PollFields{
@@ -59,16 +72,15 @@ class KLPad extends PollFields{
     }
 }
 
-public class KQueue<E> extends KLPad implements RPQ<E> {
+public class PIPQ<E> extends KLPad implements RPQ<E> {
 
     private static final int NCPU = Runtime.getRuntime().availableProcessors();
-    private static final int MAX_PUBLICATIONS_PER_SEGMENT = 128; //max number of publications a segment can make in the queue (size of the sorted buffer which is the size of a cache line)
     private static final int PROBE_DISTANCE = NCPU >>> 1; //max length to probe for a worker to acquire before retrying
 
 
     private final Segment<E>[] segments;
-    private final MpscLeaderQueue queue;
     private final int mask;
+    private final LeaderList<E> list;
     private final ThreadLocal<ProbeState> state = ThreadLocal.withInitial(ProbeState::new);
 
     static class ProbeState {
@@ -88,37 +100,15 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
         }
     }
 
-    public KQueue(int concurrency) {
-        this(concurrency, 7);
-    }
 
-
-    public KQueue(int concurrency, int initialHeapSize) {
-        this(concurrency, initialHeapSize, MAX_PUBLICATIONS_PER_SEGMENT);
-    }
-
-
-    public KQueue(int concurrency, int initialHeapSize, int bufferSize) {
+    public PIPQ(int concurrency, Comparator<? super E> comparator) {
         int segmentSize = MiscUtils.roundToPowerOfTwo(concurrency <= 0 ? NCPU : concurrency);
         mask = segmentSize - 1;
+        list = new LeaderList<>(comparator);
         segments = new Segment[segmentSize];
-        queue = new MpscLeaderQueue(segmentSize * MAX_PUBLICATIONS_PER_SEGMENT);
         for (int id = 0; id < segmentSize; ++id)
-            segments[id] = new Segment<>(bufferSize <= 0 ? MAX_PUBLICATIONS_PER_SEGMENT : MiscUtils.roundToPowerOfTwo(bufferSize), queue, id, initialHeapSize ,null);
+            segments[id] = new Segment<>(id, list ,null);
     }
-
-//    public void logSegmentSizes() {
-//        int min = Integer.MAX_VALUE, max = 0;
-//        long sum = 0;
-//        for (var s : segments) {
-//            int sz = s.size();
-//            min = Math.min(min, sz);
-//            max = Math.max(max, sz);
-//            sum += sz;
-//        }
-//        double avg = sum / (double) segments.length;
-//        System.out.printf("min=%d max=%d avg=%.1f (skew=%.1fx)%n", min, max, avg, max / Math.max(1.0, avg));
-//    }
 
     @Override
     public boolean offer(E e) {
@@ -157,23 +147,69 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
     }
 
     public E poll() {
+        var h =  hopper;
+        var list = this.list;
         var segments = this.segments;
-        var q = queue;
+        PollRequest request = new PollRequest();
+        boolean combine = h.add(request);
+        if (combine) {
+            var items = h.dump(request);
+            try {
+                while (items.hasNext()) {
+                    var item = items.next();
+                    var polled = list.poll();
+                    if (polled == null) {
+                        item.value = null;
+                        item.apply();
+                        continue;
+                    }
 
-        synchronized (lock) {
-            var id = q.poll();
-            return doPoll(id, segments);
+                    int id = polled.id;
+                    var segment = segments[id];
+                    var leaderListSize = segment.decrementLeaderListSize();
+
+                    item.id = id;
+                    item.size = leaderListSize;
+                    item.value = polled.value;
+                    item.apply();
+
+                    if (leaderListSize <= PIPQConstants.MIN_LEADER_LIST_ELEMS) forceUpsert(segment);
+                }
+
+                return (E) request.value;
+            }finally {
+                h.unlock();
+            }
+        }
+
+        var strategy = this.strategy;
+        int spins = 0;
+        while (!request.isApplied()) {
+            spins = strategy.idle(spins);
+        }
+
+        E val = (E) request.value;
+        int size = request.size;
+        if (size != -1 && size <= PIPQConstants.UPSERT_THRESHOLD) tryUpsert(segments[request.id]);
+        return val;
+    }
+
+     void forceUpsert(Segment<E> segment) {
+        segment.acquire();
+        try {
+             segment.forceUpsert();
+        }finally {
+            segment.release();
         }
     }
 
-    E doPoll(int id,  Segment<E>[] segments) {
-        if (id == -1) return null;
-        var segment = segments[id];
-        segment.acquire();
-        try {
-            return segment.poll();
-        }finally {
-            segment.release();
+    void tryUpsert(Segment<E> segment) {
+        if (segment.boundedTryAcquire()) {
+            try {
+                segment.helpUpsert();
+            }finally {
+                segment.release();
+            }
         }
 
     }
@@ -188,11 +224,15 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
         return sb.toString();
     }
 
+
+    //only for benchmarks (per iteration)
     public void clear() {
-        queue.clear();
-        for (int i = 0; i <= mask; ++i) {
+        var segments = this.segments;
+        for (int i = 0; i < (mask + 1); ++i) {
             segments[i].clear();
         }
+
+          while (list.poll() != null);
     }
 
     @Override

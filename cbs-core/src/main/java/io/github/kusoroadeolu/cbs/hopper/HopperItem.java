@@ -11,7 +11,7 @@ public abstract class HopperItem<E extends HopperItem<E>> {
         return applied;
     }
 
-    protected void apply() {
+    public void apply() {
         applied = true;
     }
 }
