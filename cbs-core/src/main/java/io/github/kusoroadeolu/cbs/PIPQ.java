@@ -194,10 +194,10 @@ public class PIPQ<E> extends KLPad implements RPQ<E> {
         return val;
     }
 
-     void forceUpsert(Segment<E> segment) {
+    void forceUpsert(Segment<E> segment) {
         segment.acquire();
         try {
-             segment.forceUpsert();
+            segment.forceUpsert();
         }finally {
             segment.release();
         }
@@ -232,7 +232,7 @@ public class PIPQ<E> extends KLPad implements RPQ<E> {
             segments[i].clear();
         }
 
-          while (list.poll() != null);
+        while (list.poll() != null);
     }
 
     @Override

@@ -92,7 +92,8 @@ class SegmentFields<E> extends SegmentLPad {
                         if (res == 0) {
                             this.tail = prev;
                             linkNext(prev, null);
-                            return true; //tail has since been deleted
+                            incrementLeaderListSize();
+                            return true; //tail was deleted by someone else
                         } else if (res == 1) {
                             this.tail = prev;
                             linkNext(prev, null);
@@ -224,12 +225,17 @@ class SegmentFields<E> extends SegmentLPad {
             this.tail = node;
         }
 
-        LEADER_LIST_SIZE.getAndAddRelease(this, 1);
+        incrementLeaderListSize();
     }
 
     public int decrementLeaderListSize() {
         return (int) LEADER_LIST_SIZE.getAndAdd(this, -1);
     }
+
+    public int incrementLeaderListSize() {
+        return (int) LEADER_LIST_SIZE.getAndAddRelease(this, 1);
+    }
+
 
     public void offerHeap(E e) {
         int s = heapSize;
