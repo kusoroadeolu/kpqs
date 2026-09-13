@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 10, time = 1)
+@Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class MixedThrptBench {
@@ -25,6 +25,7 @@ public class MixedThrptBench {
     private String type;
 
     final static int RANGE = 1_000_000;
+    final static int JITTER_RANGE = 100;
 
 
     @Setup(Level.Trial)
@@ -55,11 +56,31 @@ public class MixedThrptBench {
         }
     }
 
+    @State(Scope.Thread)
+    public static class Sequence {
+        int i;
+
+
+        @Setup(Level.Iteration)
+        public void reset() {
+            i = 0;
+        }
+
+        int nextInt() {
+            return i++ + jitter();
+        }
+
+        int jitter() {
+            return ThreadLocalRandom.current().nextInt(0, JITTER_RANGE);
+        }
+
+    }
+
     @Group("ratio_75_25")
     @GroupThreads(6)
     @Benchmark
-    public void seventy_five_add(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
+    public void seventy_five_add(Blackhole bh, Sequence sequence) {
+        bh.consume(queue.offer(sequence.nextInt()));
     }
 
     @Group("ratio_75_25")
@@ -78,8 +99,8 @@ public class MixedThrptBench {
     @Group("ratio_50_50")
     @GroupThreads(4)
     @Benchmark
-    public void fifty_add(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
+    public void fifty_add(Blackhole bh, Sequence sequence) {
+        bh.consume(queue.offer(sequence.nextInt()));
     }
 
     @Group("ratio_50_50")

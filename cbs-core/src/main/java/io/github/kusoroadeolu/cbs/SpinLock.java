@@ -89,7 +89,7 @@ public class SpinLock implements Lock {
     }
 
     public boolean canAcquire() {
-        return isFree() && (int) STATE.getAndAddAcquire(this, 1) == FREE;
+        return isFree() && (int) STATE.getAndAdd(this, 1) == FREE;
     }
 
 

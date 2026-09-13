@@ -44,7 +44,6 @@ class PollFields extends PollFieldPad {
     static class PollRequest extends HopperItem<PollRequest> {
         int id = -1;
         int size = -1;
-        boolean upsert;
         Object value;
     }
 }
@@ -158,6 +157,7 @@ public class PIPQ<E> extends KLPad implements RPQ<E> {
                 while (items.hasNext()) {
                     var item = items.next();
                     var polled = list.poll();
+
                     if (polled == null) {
                         item.value = null;
                         item.apply();

@@ -7,7 +7,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.PriorityQueue;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.*;
 import static io.github.kusoroadeolu.cbs.utils.PIPQConstants.DEFAULT_INITIAL_HEAP_SIZE;
@@ -60,34 +59,44 @@ class SegmentFields<E> extends SegmentLPad {
         heap = allocateArray(initialHeapSize);
     }
 
+    //serialized under lock
     public boolean add(E e) {
         var list = this.list;
         var tail = this.tail;
         if (heapSize == 0 || comparator.compare(e, heap[0]) < 0) {
             int leaderListSize = (int) LEADER_LIST_SIZE.getAcquire(this);
+
             if (leaderListSize == PIPQConstants.MAX_LEADER_LIST_ELEMS) {
                 if (comparator.compare(e, tail.value) < 0) {
                     //Slowest path
                     Node<E> node = new Node<>(id, e);
                     addToLeaderList(node);
-                    var t = tail;
-
-                    boolean deleted = tail.isMarked();
-
-                    if (deleted) {
-                        var prev = tail.localPrev; //we need to walk backwards from tail
-                        linkNext(prev, null);
-                        syncTail(prev);
-                        return true;
-                    }
 
                     for (;;) {
                         VarHandle.acquireFence();
-                        var start = syncTail(this.tail);
-                        int res = list.moveFromLeaderList(start, tail);
-                        if (res == 0) return true; //tail has since been deleted
-                        else if (res == 1) {
-                            offerHeap(t.value);
+                        //we're assuming the tail is either already unlinked (in the local list) or the tail is alive
+                        //pred should never be a tail's live predecessor if (leader list size == max) with one exception, see below
+                        var prev = findTailPredecessor(tail);
+
+                        //our leader list size synced up with a far earlier read
+                        if (prev == pred ) return true; // no need to pull down
+
+                        if (prev.localNext == null || tail.isMarked()) { //tail has been unlinked a while now, just wasn't updated
+                            this.tail = prev;
+                            linkNext(prev, null);
+                            return true;
+                        }
+
+
+                        int res = list.moveFromLeaderList(prev, tail);
+                        if (res == 0) {
+                            this.tail = prev;
+                            linkNext(prev, null);
+                            return true; //tail has since been deleted
+                        } else if (res == 1) {
+                            this.tail = prev;
+                            linkNext(prev, null);
+                            offerHeap(tail.value);
                             return true;
                         }
                     }
@@ -99,6 +108,7 @@ class SegmentFields<E> extends SegmentLPad {
             } else {
                 upsert(e);
             }
+
         } else {
             offerHeap(e);
         }
@@ -107,18 +117,15 @@ class SegmentFields<E> extends SegmentLPad {
         return true;
     }
 
+
     void addToLeaderList(Node<E> node) {
         E e = node.value;
-        int stuck = 0;
         for (;;) {
-            Node<E> start = scanLocalList(e);
+            Node<E> start = findPredecessor(e);
             if (list.addFrom((start == pred) ? null : start, node)) {
                 var next = start.localNext;
                 linkNext(start, node); //start -> node
                 linkNext(node, next); //node -> start#next
-
-                linkPrev(node, start); //start <- node
-                if (next != null) linkPrev(next, node); //start#next <- node
                 return;
             }
         }
@@ -126,27 +133,32 @@ class SegmentFields<E> extends SegmentLPad {
 
     }
 
-    //walks backwards from `from` to find a new live tail
-    Node<E> syncTail(Node<E> from) {
-        Node<E> curr = from;
+
+    String localListString() {
+        var prev = this.pred;
+
+        if (prev.localNext == null) return "(empty)";
+
+        StringBuilder sb = new StringBuilder();
+
         for (;;) {
-            var prev = curr.localPrev;
+            Node<E> node = prev.localNext;
+            //if node is marked, unlink from list
 
-            if (curr.isMarked()) {
-                linkNext(prev, null);
-                linkPrev(curr, null);
-                curr = prev;
-                continue;
-            }
+            if (node == null) break;
 
-            return tail = (curr == pred ? null : curr);
+            sb.append("Node: ").append(node).append(" ");
+            prev = node;
         }
+
+        return sb.toString();
+
     }
 
 
     //Scans the local list for a good starting point in the leader list, while detaching (locally) dead nodes we come across
     //Trying to mimic skip list behavior here without an actual shared skip list (which leader queue could be) but more memory
-    Node<E> scanLocalList(E e) {
+    Node<E> findPredecessor(E e) {
         var prev = this.pred;
 
         if (prev.localNext == null) return prev;
@@ -159,22 +171,38 @@ class SegmentFields<E> extends SegmentLPad {
             if (node != null && node.isMarked())  {
                 var n = node.localNext;
                 linkNext(prev, n);
-                if (n != null) linkPrev(n, prev);
                 continue;
             }
 
             if (node == null || comparator.compare(e, node.value) <= 0) return prev;
             prev = node;
         }
-
     }
+
+    //Similar to find predecessor, just that we try to avoid unlinking the tail
+    Node<E> findTailPredecessor(Node<E> n) {
+        var prev = this.pred;
+
+        for (;;) {
+            Node<E> node = prev.localNext;
+            //if node is marked, unlink from list
+
+            if (node == n || node == null) return prev; //if node == null, tail has been unlinked since, was stale though
+
+            if (node.isMarked())  {
+                var next = node.localNext;
+                linkNext(prev, next);
+                continue;
+            }
+
+            prev = node;
+        }
+    }
+
+
 
     void linkNext(Node<E> node, Node<E> next) {
         node.localNext = next;
-    }
-
-    void linkPrev(Node<E> node, Node<E> prev) {
-        node.localPrev = prev;
     }
 
     public void helpUpsert() {
@@ -192,13 +220,15 @@ class SegmentFields<E> extends SegmentLPad {
     void upsert(E e) {
         Node<E> node = new Node<>(id, e);
         addToLeaderList(node);
-        if (tail == null || comparator.compare(e, tail.value) > 0) this.tail = node;
+        if (tail == null || comparator.compare(e, tail.value) > 0) {
+            this.tail = node;
+        }
 
         LEADER_LIST_SIZE.getAndAddRelease(this, 1);
     }
 
     public int decrementLeaderListSize() {
-        return (int) LEADER_LIST_SIZE.getAndAddAcquire(this, -1);
+        return (int) LEADER_LIST_SIZE.getAndAdd(this, -1);
     }
 
     public void offerHeap(E e) {
@@ -263,11 +293,6 @@ class SegmentFields<E> extends SegmentLPad {
     public void release() {
         lock.unlock();
     }
-
-    public int leaderListSize() {
-        return (int) LEADER_LIST_SIZE.getAcquire(this);
-    }
-
 
     public void resetSize() {
         LEADER_LIST_SIZE.setRelease(this, 0);

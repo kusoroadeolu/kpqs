@@ -67,7 +67,7 @@ public class LeaderList<T> {
     // 0 failed (the deleter deleted the node, no need to pull down),
     // 1 succeeded,
     // -1 we landed on a dummy node (our from could be deleted, so we'll need to rescan our local list)
-    //reads are acquired transitively through the acq fence
+    //reads are acquired transitively through the acq fence placed by the caller
     public int moveFromLeaderList(Node<T> start, Node<T> node) {
         var l = start == null ? left : start;
         var right = this.right;
@@ -105,30 +105,45 @@ public class LeaderList<T> {
     public Node<T> poll() {
         var l = left;
         var right = this.right;
-        restartFromLeft: for (; ;) {
-            VarHandle.acquireFence(); //next reads are acquired transitively through this fence
+        for (; ;) {
             var pred = l;
-            var curr = pred.lpNext();
+            var curr = pred.laNext();
 
-            for (;;) {
-                if (curr.isDummy()) {
-                    continue restartFromLeft; //If we find a dummy node, restart from left
-                }
-
-                if (curr.isMarked()) {
-                    curr = helpUnlink(pred, curr);
-                    continue;
-                }
-
-                if (curr == right) return null;
-
-                boolean marked = curr.casDeleted();
-                helpUnlink(pred, curr);
-                if (marked) return curr;
-                else continue restartFromLeft;
+            if (curr.isDummy()) {
+                continue; //If we find a dummy node, restart from left
             }
 
+            if (curr.loMarked()) {
+                helpUnlink(pred, curr);
+                continue;
+            }
+
+            if (curr == right) return null;
+
+            boolean marked = curr.casDeleted();
+            helpUnlink(pred, curr);
+            if (marked) return curr;
         }
+    }
+
+    public String nodes(int id) {
+        var l = left;
+        var right = this.right;
+        StringBuilder sb = new StringBuilder();
+        var pred = l;
+        var curr = pred.laNext();
+        for (; ;) {
+            if (curr == right) break;
+
+            if (!curr.isDummy() && !curr.loMarked() && curr.id == id) {
+                 sb.append("Node: " ).append(curr).append(", ");
+            }
+
+
+            pred = curr; curr = pred.lpNext();
+        }
+
+        return sb.toString();
     }
 
     //Returns the next undead node

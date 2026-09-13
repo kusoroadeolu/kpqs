@@ -11,7 +11,6 @@ public class Node<T> {
         static final int MOVING = 1;
         static final int DELETED = 2;
         Node<T> next;
-        public Node<T> localPrev;
         public Node<T> localNext;
 
         public Node(int id, T value) {
@@ -33,7 +32,12 @@ public class Node<T> {
             return next;
         }
 
-        public boolean casNext(Node<T> seen, Node<T> ours) {
+        public Node<T> laNext(){
+            return (Node<T>) NEXT.getAcquire(this);
+        }
+
+
+    public boolean casNext(Node<T> seen, Node<T> ours) {
             return NEXT.compareAndSet(this, seen, ours);
         }
 
@@ -42,7 +46,7 @@ public class Node<T> {
         }
 
         public boolean loMarked() {
-            return (int) STATE.getOpaque(this) == DELETED;
+            return (int) STATE.getAcquire(this) >= MOVING;
         }
 
         public void spNext(Node<T> next) {
@@ -74,4 +78,4 @@ public class Node<T> {
                 throw new RuntimeException(e);
             }
         }
-    }
+}
