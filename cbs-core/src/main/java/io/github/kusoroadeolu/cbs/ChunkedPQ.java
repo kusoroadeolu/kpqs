@@ -386,6 +386,13 @@ public class ChunkedPQ<E> implements PQ<E> {
         }
     }
 
+    @Override
+    public void unsafeClear() {
+        synchronized (head) {
+            head.srNext(null);
+        }
+    }
+
     void readElementsInChunk(Chunk<E> chunk, SortedList<E> list, int index) {
         for (int i = 0; i < index; ++i) {
             list.add(chunk.lpArray(i));
@@ -408,42 +415,6 @@ public class ChunkedPQ<E> implements PQ<E> {
         }
     }
 
-    @Override
-    public E peek() {
-        return null;
-    }
-
-    @Override
-    public int size() {
-        var head = this.head;
-        Chunk<E> curr = head;
-        int size = 0;
-        while (true) {
-            synchronized (curr) {
-                var n = curr.lpNext();
-                if (n == null) return size;
-                int index = Chunk.decodeIndex(n.lpStatus());
-                if (curr == head) {
-                    size += ((FirstChunk<E>)n).capacity - index;
-                } else size += index;
-                curr = n;
-            }
-
-        }
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return false;
-    }
-
-    //Filler clear method, just for benchmarks rn
-    @Override
-    public void clear() {
-        synchronized (head) {
-            head.srNext(null);
-        }
-    }
 
     static <T> void findNode(T t, Chunk<T> left, Chunks<T> chunks, Comparator<? super T> comparator) {
         Chunk<T> pred = left;

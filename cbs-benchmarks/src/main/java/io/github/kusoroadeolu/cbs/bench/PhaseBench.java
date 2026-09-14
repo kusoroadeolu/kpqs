@@ -35,7 +35,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({PQFactory.CBQ, PQFactory.PBQ})
+    @Param({PQFactory.CBQ})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -244,6 +244,5 @@ public class PhaseBench {
 │  ConsumerProducerThreadCount Type                  Score    Error     Unit   │
 │  --------------------------- --------------------- -------- --------- -----  │
 │  8                           ChunkedPQ             3643.430 ± 877.421 us/op  │
-│  8                           PriorityBlockingQueue 1371.307 ± 65.904  us/op  │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 * */

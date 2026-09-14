@@ -5,11 +5,5 @@ public interface PQ<E> {
 
     E poll();
 
-    E peek();
-
-    int size();
-
-    boolean isEmpty();
-
-    void clear();
+    void unsafeClear();
 }

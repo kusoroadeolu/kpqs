@@ -3,7 +3,6 @@ package io.github.kusoroadeolu.cbs.bench.baseline;
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
-import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -22,7 +21,7 @@ public class SingleThreadedOffer {
 
     final static int RANGE = 1_000_000;
 
-    @Param({PQFactory.CBQ, PQFactory.PBQ})
+    @Param({PQFactory.CBQ})
     public String type;
 
 
@@ -33,7 +32,7 @@ public class SingleThreadedOffer {
 
     @TearDown(Level.Invocation)
     public void teardown() {
-        queue.clear();
+        queue.unsafeClear();
     }
 
     @Benchmark

@@ -37,7 +37,7 @@ public class MixedThrptBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 
