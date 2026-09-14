@@ -1,45 +1,28 @@
-# cbs — Concurrent Priority Queues
+# Concurrent Priority Queues (CBS)
 
-A collection of concurrent priority queue implementations in Java, built as an exploration of different strategies for reducing contention on the classic "many producers, many consumers, one ordered structure" problem.
+This repo contains several different implementations of concurrent priority queues, each exploring a different design tradeoff between throughput, contention, and strict ordering guarantees.
 
-Each implementation lives on its own branch, with its own README covering the specifics of that design (invariants, known issues, benchmarks where available). This top-level README is just an index and a map of the territory.
+Each implementation lives on its own branch in this repo.
+
+Design doc images for some of the queues (KQueue, KSkipListQueue, and Mound) are available in the main branch.
 
 ## Implementations
 
-### `PIPQ`
-A segmented queue where each worker owns a local heap, and the smallest candidates from each segment are tracked in a shared, lock-free sorted linked list (`LeaderList`). Uses CAS-based marking and unlinking with dummy nodes for the shared list, and a local per-segment linked list to approximate the leader list's shape for cheaper scans.
+### KQueue
+A sharded priority queue. Elements are spread across an array of segments (each with a sorted delete buffer, an insert buffer, and an overflow heap) using randomized probing with per segment spin locks. A lock free MPSC "leader queue" tracks which segments currently have promising elements, so a single consumer thread knows where to poll from without scanning every segment. Approximate ordering, optimized for low contention on the write path.
 
-Known issue: there is a race between a concurrent insert at the left sentinel and a `poll`, which can affect which node is treated as a segment's tail. No benchmark numbers are included for PIPQ cause of this
+### KSkipListQueue
+Each segment is backed by a `ConcurrentSkipListSet` instead of a custom buffer/heap stack. Producers use randomized probing plus an "elimination" arena, if a producer can't lock a segment, it checks for a waiting consumer and hands the element directly to it, skipping the underlying structure entirely. Consumers periodically harvest the top elements from every segment into a single sorted batch (`DeleteArray`) and serve poll requests out of that batch until it's exhausted, at which point a new harvest happens.
 
-### `KQueue`
-A simpler alternative to `PIPQ`. Each segment keeps a small sorted delete buffer, a plain insert buffer for staging, and a fallback heap for overflow. A shared MPSC queue tracks which segment IDs currently have a viable candidate in their delete buffer, which is what `poll()` consults instead of walking a shared sorted list.
+### MultiQueue
+The simplest of the sharded designs. Same segment structure as KQueue (delete buffer, insert buffer, heap), but each segment also caches its own minimum value for lock free reads. Polling uses randomized "power of two choices": pick two random segments, compare their cached minimums, and try to lock and poll from whichever looks smaller. No auxiliary coordination structure (no leader queue, no arena), just per segment caching and random sampling.
 
-Design images included on this branch.
+### ChunkedPQ
+A strictly ordered (non approximate) concurrent priority queue built on an unrolled linked list of fixed size chunks. The first chunk in the list handles deletions, a paired buffer chunk allows fast inserts of small values without contending on the first chunk directly, and the rest of the list handles general inserts. Deleting threads claim slots via fetch and add for a lock free fast path, and chunks are "frozen" and merged/split (with helping from concurrent threads) when they need to be reorganized.
 
-### `ConcurrentMound`
-Based on the Mound structure: a concurrently accessed tree where each node holds a small local priority queue (a bucket) instead of a single value. Insertion uses randomized probing plus fine-grained per-node locking to find an insertion point. Deletion restores heap order by swapping whole buckets between parent and child rather than moving individual values.
+### ConcurrentMound
+A strictly ordered concurrent priority queue shaped like a classic binary heap, but where each node holds a small local bucket (a `PriorityQueue`) instead of a single value, based on the "mound" data structure. The heap array grows level by level via a segmented array structure. Inserts use a randomized starting point plus a binary search up the tree to reduce contention at the root, and polling pops from the root bucket then restores the heap invariant by swapping whole buckets down the tree (similar in spirit to sift down, but bucket by bucket).
 
-Design images included on this branch.
+### PIPQ
+A sharded design (same segment/probing skeleton as KQueue and MultiQueue) built around a single shared lock free sorted linked list, the "leader list". Each segment publishes a bounded window of its smallest elements into this shared list and keeps the rest in a local heap, refilling the list as it drains. The leader list itself uses a custom 3 phase deletion protocol (NONE, MARKING, MARKED plus a dummy node splice) intended to close a race where a concurrent insert could land next to a node mid deletion and get lost. Poll requests can optionally be combined through a flat combining structure (`Hopper`) so one thread does the leader list traversal work for a batch of concurrent pollers.
 
-### `ChunkedPQ`
-An unrolled linked list of fixed-size sorted chunks. The first chunk is delete-only and handles polls via fetch-and-add, avoiding CAS contention at the head. A buffer chunk absorbs inserts that are smaller than the first chunk's anchor and gets merged in later. Regular chunks split when full, similar to a B-tree. The most heavily documented implementation in the codebase (see the class-level comment on that branch).
-
-### `MultiQueue`
-The simplest of the set. Segments are just locked local heaps, and `poll()` uses power-of-two-choices: sample two random segments, take the one with the smaller peeked minimum, lock it, revalidate, and poll. No shared coordinating structure at all. Weaker ordering guarantees than the others, but the easiest to reason about and likely the most robust under load.
-
-### `KSkipListQueue`
-Each segment is backed by a `ConcurrentSkipListSet` instead of a hand-rolled structure. Adds an elimination-style rendezvous mechanism: a producer that fails to lock a segment can hand its element directly to a parked poller via an arena slot, skipping the underlying set entirely. Polling is batched: a thread periodically drains the top-K elements from every segment, sorts them once, and hands them out from a shared drain array until it's exhausted, at which point the next thread refills it.
-
-Design images included on the kqueue branch.
-
-## Branches
-
-Each implementation above has its own branch containing:
-- The implementation itself
-
-
-Design images are included for `KQueue`, `KSkipListQueue`, and `ConcurrentMound`. The other implementations do not have accompanying diagrams.
-
-## A note on correctness
-
-Some of the designs (particularly `PIPQ`) have open correctness questions that would need proper concurrent testing (jcstress), which I could do but too lazy to. Treat them as reference implementations and design studies rather than drop-in queues.
