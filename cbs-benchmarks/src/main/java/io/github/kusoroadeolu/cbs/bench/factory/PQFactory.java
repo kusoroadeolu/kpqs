@@ -6,7 +6,7 @@ import io.github.kusoroadeolu.cbs.PIPQ;
 
 import java.util.Comparator;
 
-public final class RPQFactory {
+public final class PQFactory {
 
     public static final String PBQ = "PriorityBlockingQueue";
     public static final String PIPQ = "PIPQ";

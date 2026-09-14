@@ -61,10 +61,10 @@ public class LeaderList<T> {
         }
     }
 
-    public Node<T> findNewTail(Node<T> start, Node<T> old) {
-            Node<T> largest = start;
-            VarHandle.acquireFence();
-            var curr = start.lpNext();
+    public Node<T> findNewTail(Node<T> old) {
+            Node<T> largest = null;
+            VarHandle.acquireFence(); //do we really need this or will the one placed earlier suffice?
+            var curr = left.lpNext();
             for (;;) {
                 if (curr.isMarked() || curr.isDummy()) {
                     curr = curr.lpNext(); //Only shift curr

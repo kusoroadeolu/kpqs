@@ -2,7 +2,7 @@ package io.github.kusoroadeolu.cbs.bench.insert;
 
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 public class InsertScalingBench {
     private PQ<Integer> queue;
 
-    @Param({RPQFactory.PIPQ})
+    @Param({PQFactory.PIPQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -30,7 +30,7 @@ public class InsertScalingBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = RPQFactory.createRPQ(type, 128_000);
+        queue = PQFactory.createRPQ(type, 128_000);
     }
 
     @TearDown(Level.Iteration)
@@ -96,53 +96,28 @@ public class InsertScalingBench {
 
 /*
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.eight_full_insert ─╮
-│  Type   Score  Error   Unit                                                   │
-│  ------ ------ ------- ------                                                 │
-│  PIPQ 34.516 ± 2.167 ops/us                                                 │
+│  Type Score  Error   Unit                                                     │
+│  ---- ------ ------- ------                                                   │
+│  PIPQ 38.302 ± 3.045 ops/us                                                   │
 ╰───────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.four_full_insert ─╮
-│  Type   Score  Error   Unit                                                  │
-│  ------ ------ ------- ------                                                │
-│  PIPQ 28.376 ± 1.436 ops/us                                                │
+│  Type Score  Error   Unit                                                    │
+│  ---- ------ ------- ------                                                  │
+│  PIPQ 33.940 ± 3.021 ops/us                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.six_full_insert ─╮
-│  Type   Score  Error   Unit                                                 │
-│  ------ ------ ------- ------                                               │
-│  PIPQ 32.076 ± 1.764 ops/us                                               │
+│  Type Score  Error   Unit                                                   │
+│  ---- ------ ------- ------                                                 │
+│  PIPQ 37.805 ± 2.560 ops/us                                                 │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.two_full_insert ─╮
-│  Type   Score  Error   Unit                                                 │
-│  ------ ------ ------- ------                                               │
-│  PIPQ 21.826 ± 1.052 ops/us                                               │
+│  Type Score  Error   Unit                                                   │
+│  ---- ------ ------- ------                                                 │
+│  PIPQ 27.839 ± 2.160 ops/us                                                 │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 **/
 
 
-/*
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.eight_full_insert ─╮
-│  Type                  Score  Error   Unit                             │
-│  --------------------- ------ ------- ------                           │
-│  PriorityBlockingQueue 13.907 ± 0.694 ops/us                           │
-╰────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.four_full_insert ─╮
-│  Type                  Score  Error   Unit                            │
-│  --------------------- ------ ------- ------                          │
-│  PriorityBlockingQueue 13.719 ± 0.900 ops/us                          │
-╰───────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.six_full_insert ─╮
-│  Type                  Score  Error   Unit                           │
-│  --------------------- ------ ------- ------                         │
-│  PriorityBlockingQueue 13.756 ± 0.695 ops/us                         │
-╰──────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.two_full_insert ─╮
-│  Type                  Score  Error   Unit                           │
-│  --------------------- ------ ------- ------                         │
-│  PriorityBlockingQueue 10.982 ± 0.364 ops/us                         │
-╰──────────────────────────────────────────────────────────────────────╯
-* */

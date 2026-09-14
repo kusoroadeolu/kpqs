@@ -2,7 +2,7 @@ package io.github.kusoroadeolu.cbs.bench.insert;
 
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 public class InsertScalingJitterBench {
     private PQ<Integer> queue;
 
-    @Param({RPQFactory.PIPQ})
+    @Param({PQFactory.PIPQ})
     private String type;
 
     final static int JITTER_RANGE = 100;
@@ -32,7 +32,7 @@ public class InsertScalingJitterBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = RPQFactory.createRPQ(type, 128_000);
+        queue = PQFactory.createRPQ(type, 128_000);
     }
 
 
@@ -106,53 +106,27 @@ public class InsertScalingJitterBench {
 }
 
 /*
-* ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
-│  Type                  Score  Error   Unit                                          │
-│  --------------------- ------ ------- ------                                        │
-│  PriorityBlockingQueue 17.283 ± 0.949 ops/us                                        │
+╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
+│  Type Score  Error   Unit                                                           │
+│  ---- ------ ------- ------                                                         │
+│  PIPQ 45.915 ± 7.910 ops/us                                                         │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
-│  Type                  Score  Error   Unit                                         │
-│  --------------------- ------ ------- ------                                       │
-│  PriorityBlockingQueue 18.221 ± 0.874 ops/us                                       │
+│  Type Score  Error   Unit                                                          │
+│  ---- ------ ------- ------                                                        │
+│  PIPQ 44.220 ± 2.788 ops/us                                                        │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
-│  Type                  Score  Error   Unit                                        │
-│  --------------------- ------ ------- ------                                      │
-│  PriorityBlockingQueue 17.343 ± 0.884 ops/us                                      │
+│  Type Score  Error   Unit                                                         │
+│  ---- ------ ------- ------                                                       │
+│  PIPQ 38.906 ± 1.900 ops/us                                                       │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
-│  Type                  Score  Error   Unit                                        │
-│  --------------------- ------ ------- ------                                      │
-│  PriorityBlockingQueue 13.740 ± 0.488 ops/us                                      │
+│  Type Score  Error   Unit                                                         │
+│  ---- ------ ------- ------                                                       │
+│  PIPQ 42.434 ± 3.868 ops/us                                                       │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
-*
-* ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
-│  Type   Score  Error   Unit                                                         │
-│  ------ ------ ------- ------                                                       │
-│  PIPQ 39.887 ± 2.022 ops/us                                                       │
-╰─────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
-│  Type   Score  Error   Unit                                                        │
-│  ------ ------ ------- ------                                                      │
-│  PIPQ 35.239 ± 2.091 ops/us                                                      │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
-│  Type   Score  Error   Unit                                                       │
-│  ------ ------ ------- ------                                                     │
-│  PIPQ 38.337 ± 2.061 ops/us                                                     │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
-│  Type   Score  Error   Unit                                                       │
-│  ------ ------ ------- ------                                                     │
-│  PIPQ 27.676 ± 1.360 ops/us                                                     │
-╰───────────────────────────────────────────────────────────────────────────────────╯
-
-*
 * */

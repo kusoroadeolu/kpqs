@@ -2,7 +2,7 @@ package io.github.kusoroadeolu.cbs.bench.baseline;
 
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
 import org.openjdk.jmh.runner.RunnerException;
@@ -24,13 +24,13 @@ public class SingleThreadedPoll {
     private volatile boolean dontUnroll = true;
 
 
-    @Param({RPQFactory.PIPQ})
+    @Param({PQFactory.PIPQ})
     public String type;
 
 
     @Setup
     public void setup() {
-        queue = RPQFactory.createRPQ(type, OPS * 2);
+        queue = PQFactory.createRPQ(type, OPS * 2);
     }
 
     @Setup(Level.Invocation)

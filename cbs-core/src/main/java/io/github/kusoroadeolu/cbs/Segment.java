@@ -123,7 +123,7 @@ class SegmentFields<E> extends SegmentLPad {
         if (largest == null || comparator.compare(e, largest.value) > 0) {
             this.largest = node;
         } else if (largest.state == MARKING) {
-            largest = list.findNewTail(node, largest);
+            largest = list.findNewTail(largest);
             //prevents the issue where we deleted the only element in the leader list though we couldnt update it
             //cause of a concurrent inserter
         }

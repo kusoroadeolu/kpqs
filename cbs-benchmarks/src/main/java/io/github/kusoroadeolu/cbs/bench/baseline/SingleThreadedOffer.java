@@ -2,7 +2,7 @@ package io.github.kusoroadeolu.cbs.bench.baseline;
 
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,13 +21,13 @@ public class SingleThreadedOffer {
 
     final static int RANGE = 1_000_000;
 
-    @Param({RPQFactory.PIPQ, RPQFactory.PBQ})
+    @Param({PQFactory.PIPQ, PQFactory.PBQ})
     public String type;
 
 
     @Setup
     public void setup() {
-        queue = RPQFactory.createRPQ(type, OPS * 2);
+        queue = PQFactory.createRPQ(type, OPS * 2);
     }
 
     @TearDown(Level.Invocation)

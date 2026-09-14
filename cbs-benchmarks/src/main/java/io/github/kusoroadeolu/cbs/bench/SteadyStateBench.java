@@ -1,7 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.PQ;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -21,7 +21,7 @@ import static io.github.kusoroadeolu.cbs.utils.MiscUtils.xorShift;
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class SteadyStateBench {
-    @Param({RPQFactory.PIPQ})
+    @Param({PQFactory.PIPQ})
     private String type;
 
     private PQ<Integer> queue;
@@ -32,7 +32,7 @@ public class SteadyStateBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = RPQFactory.createRPQ(type, STEADY_STATE_SIZE);
+        queue = PQFactory.createRPQ(type, STEADY_STATE_SIZE);
 
         for (int i = 0; i < STEADY_STATE_SIZE; i++) {
             queue.offer(ThreadLocalRandom.current().nextInt(0, RANGE));
@@ -86,12 +86,10 @@ public class SteadyStateBench {
 }
 
 /*
-╭──────────────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ─────────────────────────────────╮
-│  Type                  Score Error   P00   P50   P90   P95   P99     P99.9   P99.99   P99.999  P99.9999  Max       Unit   │
-│  --------------------- ----- ------- ----- ----- ----- ----- ------- ------- -------- -------- --------- --------- -----  │
-│  PIPQ                6.709 ± 0.080 0.000 0.600 3.500 4.400 177.152 426.496 2857.569 6011.777 9863.168  12107.776 us/op  │
-│  PriorityBlockingQueue 3.449 ± 0.030 0.100 0.200 0.300 1.000 96.384  166.656 213.760  866.304  14020.099 14483.456 us/op  │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ──────────────────────╮
+│  Type Score Error   P00   P50   P90   P95   P99     P99.9   P99.99  P99.999 P99.9999 Max      Unit   │
+│  ---- ----- ------- ----- ----- ----- ----- ------- ------- ------- ------- -------- -------- -----  │
+│  PIPQ 2.944 ± 0.022 0.000 0.400 1.100 2.200 113.280 186.112 242.688 814.080 3510.064 5824.512 us/op  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-── Generated with JMHPretty ──
 * */

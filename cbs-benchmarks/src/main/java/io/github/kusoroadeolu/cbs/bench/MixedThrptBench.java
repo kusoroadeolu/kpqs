@@ -1,7 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.PQ;
-import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
+import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 public class MixedThrptBench {
     private PQ<Integer> queue;
 
-    @Param({RPQFactory.PIPQ})
+    @Param({PQFactory.PIPQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -29,7 +29,7 @@ public class MixedThrptBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = RPQFactory.createRPQ(type, 128_000);
+        queue = PQFactory.createRPQ(type, 128_000);
     }
 
 
@@ -112,69 +112,23 @@ public class MixedThrptBench {
     }
 }
 /*
-╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.full_insert ─╮
-│  Type                  Score  Error   Unit                     │
-│  --------------------- ------ ------- ------                   │
-│  PIPQ                31.616 ± 2.375 ops/us                   │
-│  PriorityBlockingQueue 14.472 ± 0.621 ops/us                   │
-╰────────────────────────────────────────────────────────────────╯
-
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
-│  Type                  Role       Score  Error   Unit          │
-│  --------------------- ---------- ------ ------- ------        │
-│  PIPQ                fifty_add  22.384 ± 2.047 ops/us        │
-│  PIPQ                fifty_poll 0.229  ± 0.032 ops/us        │
-│  PIPQ                pollHit    0.230  ± 0.033 ops/us        │
-│  PIPQ                pollMiss   0.001  ± 0.002 ops/us        │
-│  PIPQ                aggregate  22.614 ± 2.035 ops/us        │
-│  PriorityBlockingQueue fifty_add  4.519  ± 0.899 ops/us        │
-│  PriorityBlockingQueue fifty_poll 6.861  ± 2.437 ops/us        │
-│  PriorityBlockingQueue pollHit    4.415  ± 0.999 ops/us        │
-│  PriorityBlockingQueue pollMiss   2.447  ± 1.521 ops/us        │
-│  PriorityBlockingQueue aggregate  11.380 ± 3.308 ops/us        │
-╰────────────────────────────────────────────────────────────────╯
+│  Type Role       Score  Error   Unit                          │
+│  ---- ---------- ------ ------- ------                        │
+│  PIPQ fifty_add  33.742 ± 3.526 ops/us                        │
+│  PIPQ fifty_poll 0.019  ± 0.005 ops/us                        │
+│  PIPQ pollHit    0.019  ± 0.005 ops/us                        │
+│  PIPQ pollMiss   0.000  ± 0.000 ops/us                        │
+│  PIPQ aggregate  33.760 ± 3.526 ops/us                        │
+╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
-│  Type                  Role             Score  Error   Unit    │
-│  --------------------- ---------------- ------ ------- ------  │
-│  PIPQ                pollHit          0.105  ± 0.014 ops/us  │
-│  PIPQ                pollMiss         0.000  ± 0.000 ops/us  │
-│  PIPQ                seventy_five_add 26.379 ± 1.776 ops/us  │
-│  PIPQ                twenty_five_poll 0.105  ± 0.014 ops/us  │
-│  PIPQ                aggregate        26.484 ± 1.780 ops/us  │
-│  PriorityBlockingQueue pollHit          2.506  ± 0.112 ops/us  │
-│  PriorityBlockingQueue pollMiss         0.001  ± 0.003 ops/us  │
-│  PriorityBlockingQueue seventy_five_add 3.015  ± 0.140 ops/us  │
-│  PriorityBlockingQueue twenty_five_poll 2.507  ± 0.112 ops/us  │
-│  PriorityBlockingQueue aggregate        5.522  ± 0.091 ops/us  │
-╰────────────────────────────────────────────────────────────────╯
-
-
-* */
-
-
-/*
- *     /*
- *     * Profile notes:
- *     * Most of the time is spent doing work in "add" is in the segment.add() method which is nice
- *     * The slow path which involves cache coherence traffic (insert to del buffer -> publish id) is taken less than 0% of the time
- *     * Which indicates the queue is usually full, which lines up with the low thrpt of poll operations.
- *     *
- *     * Around 40% of time, (the slower path) is spent draining the insert buffer into the main heap. Which does make sense
- *     * as the insert buffer amortizes the cost of heapifying everytime by some constant. Though when it's full draining is quite expensive
- *     * which is a tradeoff. The capacity of the ins buffer is also a tradeoff, two little and there's no point in keeping it, too large and it becomes a bottleneck
- *     * Right now, I use the capacity of the delete buffer to determine the capacity of the insert buffer
- *     *
- *     * Simply adding to the insert buffer (without draining) takes about 4% of the add method which shows the insert buffer is correctly doing its job of amortizing cost
- *     *
- *     * For the poll side, most of the time is actually spent idling which does make sense given the combining strategy used.
- *     * Waiting and sometimes blocking to acquire a lock for the combiner to delete an item from the segment does increase the total time taken to actually delete
- *     * the item and then actually notify the waiters. Ideally this is a key flaw in this design, though it doesnt matter too much as it's optimized for
- *     * scaling insert thrpt and high insert thrpt under contention
- *     *
- *     * Right now, trying to lock a segment (while probing) takes about 40% of the time in PIPQ#add, which means threads are more frequently landing on segments
- *     * which are locked. Right now I'm using a naive strategy to calculate the start index to start probing from which leads to more collisions ideally.
- *     * Next goal is to find a good hash to calculate a good start index and probably also, a better probing mechanism
- *     *
- *     * Hmm looks like my current approach is pretty alright, major issue being threads can walk in lockstep but yeah
- *     * */
+│  Type Role             Score  Error   Unit                    │
+│  ---- ---------------- ------ ------- ------                  │
+│  PIPQ pollHit          0.012  ± 0.003 ops/us                  │
+│  PIPQ pollMiss         0.000  ± 0.000 ops/us                  │
+│  PIPQ seventy_five_add 38.749 ± 3.162 ops/us                  │
+│  PIPQ twenty_five_poll 0.011  ± 0.003 ops/us                  │
+│  PIPQ aggregate        38.760 ± 3.162 ops/us                  │
+╰───────────────────────────────────────────────────────────────╯
+*/
