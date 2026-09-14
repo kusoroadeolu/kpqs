@@ -2,7 +2,7 @@ package io.github.kusoroadeolu.cbs.bench.factory;
 
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.PBQ;
-import io.github.kusoroadeolu.cbs.rmq.KQueue;
+import io.github.kusoroadeolu.cbs.KQueue;
 
 public final class RPQFactory {
 

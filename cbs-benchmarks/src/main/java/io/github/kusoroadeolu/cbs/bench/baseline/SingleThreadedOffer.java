@@ -3,7 +3,6 @@ package io.github.kusoroadeolu.cbs.bench.baseline;
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
-import io.github.kusoroadeolu.cbs.rmq.KQueue;
 import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -33,7 +32,7 @@ public class SingleThreadedOffer {
 
     @TearDown(Level.Invocation)
     public void teardown() {
-        queue.clear();
+        queue.unsafeClear();
     }
 
     @Benchmark

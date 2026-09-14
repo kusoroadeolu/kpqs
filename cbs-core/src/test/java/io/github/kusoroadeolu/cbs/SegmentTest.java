@@ -1,5 +1,7 @@
-package io.github.kusoroadeolu.cbs.rmq;
+package io.github.kusoroadeolu.cbs;
 
+import io.github.kusoroadeolu.cbs.MpscLeaderQueue;
+import io.github.kusoroadeolu.cbs.Segment;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

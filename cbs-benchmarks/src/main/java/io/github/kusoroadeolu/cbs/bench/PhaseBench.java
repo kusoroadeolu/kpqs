@@ -2,7 +2,6 @@ package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
-import io.github.kusoroadeolu.cbs.rmq.KQueue;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -209,7 +208,7 @@ public class PhaseBench {
         @CompilerControl(CompilerControl.Mode.DONT_INLINE)
         private boolean consume(RPQ<Integer> q)
         {
-            Integer poll = q.poll();
+            Integer poll = q.relaxedPoll();
             if (DELAY_PRODUCER > 0) Blackhole.consumeCPU(DELAY_CONSUMER);
             return poll != null;
         }

@@ -37,7 +37,7 @@ public class InsertScalingJitterBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 

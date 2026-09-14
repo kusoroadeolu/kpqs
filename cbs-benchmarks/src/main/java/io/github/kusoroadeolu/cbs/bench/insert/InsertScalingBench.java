@@ -35,7 +35,7 @@ public class InsertScalingBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 

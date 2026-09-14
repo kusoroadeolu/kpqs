@@ -1,4 +1,4 @@
-package io.github.kusoroadeolu.cbs.rmq;
+package io.github.kusoroadeolu.cbs;
 
 import io.github.kusoroadeolu.cbs.utils.VHUtils;
 

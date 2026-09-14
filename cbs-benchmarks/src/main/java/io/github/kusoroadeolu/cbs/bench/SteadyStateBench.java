@@ -2,7 +2,6 @@ package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
-import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -63,7 +62,7 @@ public class SteadyStateBench {
 
 
     boolean doWork(RPQ<Integer> rpq, PollCounters counters) {
-        Integer i = rpq.poll();
+        Integer i = rpq.relaxedPoll();
         if (i == null) {
             counters.pollMiss++;
             return false;
