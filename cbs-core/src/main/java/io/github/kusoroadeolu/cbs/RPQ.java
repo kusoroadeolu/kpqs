@@ -1,15 +1,9 @@
 package io.github.kusoroadeolu.cbs;
 
 public interface RPQ<E> {
-    boolean add(E e);
+    boolean offer(E e);
 
-    E poll();
+    E relaxedPoll();
 
-    E peek();
-
-    int size();
-
-    boolean isEmpty();
-
-    void clear();
+    void unsafeClear();
 }

@@ -1,7 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.RPQ;
-import io.github.kusoroadeolu.cbs.rmq.KSkipListQueue;
+import io.github.kusoroadeolu.cbs.KSkipListQueue;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -15,28 +15,30 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 10, time = 1)
+@Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
-public class InsertThrptBench {
+public class MixedThrptBench {
     private RPQ<Integer> queue;
 
-    @Param({"KQ"})
+    @Param({"KSkipListQueue"})
     private String type;
 
     final static int RANGE = 10_000_000;
 
+    private static final int NCPU = Runtime.getRuntime().availableProcessors();
+
     @TearDown(Level.Iteration)
     public void teardown() {
         synchronized (queue) {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 
     @Setup(Level.Trial)
     public void setup() {
         queue = switch (type) {
-            case "KQ" -> new KSkipListQueue<>(8);
+            case "KSkipListQueue" -> new KSkipListQueue<>(NCPU);
             default -> throw new RuntimeException();
         };
     }
@@ -54,26 +56,19 @@ public class InsertThrptBench {
         }
     }
 
-//    @Threads(8)
-//    @Benchmark
-//    public void eight_insert(Blackhole bh) {
-//        int val = ThreadLocalRandom.current().nextInt(0, RANGE);
-//        bh.consume(queue.add(val));
-//    }
-
     @Group("ratio_6_2")
     @GroupThreads(6)
     @Benchmark
     public void six_add(Blackhole bh) {
         int val = ThreadLocalRandom.current().nextInt(RANGE);
-        bh.consume(queue.add(val));
+        bh.consume(queue.offer(val));
     }
 
     @Group("ratio_6_2")
     @GroupThreads(2)
     @Benchmark
     public void two_poll(Blackhole bh, PollCounters counters) {
-        Integer result = queue.poll();
+        Integer result = queue.relaxedPoll();
         bh.consume(result);
         if (result == null) {
             counters.pollMiss++;
@@ -87,14 +82,14 @@ public class InsertThrptBench {
     @Benchmark
     public void four_add(Blackhole bh) {
         int val = ThreadLocalRandom.current().nextInt(RANGE);
-        bh.consume(queue.add(val));
+        bh.consume(queue.offer(val));
     }
 
     @Group("ratio_4_4")
     @GroupThreads(4)
     @Benchmark
     public void four_poll(Blackhole bh, PollCounters counters) {
-        Integer result = queue.poll();
+        Integer result = queue.relaxedPoll();
         bh.consume(result);
         if (result == null) {
             counters.pollMiss++;
@@ -106,7 +101,7 @@ public class InsertThrptBench {
     static class BenchRunner {
         static void main() throws RunnerException {
             Options options = new OptionsBuilder()
-                    .include(InsertThrptBench.class.getSimpleName())
+                    .include(MixedThrptBench.class.getSimpleName())
                     .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-mpmc-pq")
                     .build();
             new org.openjdk.jmh.runner.Runner(options).run();

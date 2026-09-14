@@ -1,11 +1,11 @@
 package io.github.kusoroadeolu.cbs.bench;
 
+import io.github.kusoroadeolu.cbs.KSkipListQueue;
 import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
-import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -14,51 +14,50 @@ import java.util.concurrent.*;
 
 /*
  * This benchmark aims to measure how long it takes in a single shot
- * to fill the queue (up to an extent) under bursty inserts
+ * to fill the queue (up to an extent) under phased inserts
  * and then fully drain the queue
  *  * */
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 7, time = 1)
-@Measurement(iterations = 10, time = 1)
-@Fork(3)
+@Warmup(iterations = 10, time = 1)
+@Measurement(iterations = 15, time = 1)
+@Fork(value = 10, jvmArgs = {
+        JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG
+})
 public class PhaseBench {
 
-    private RPQ<Integer> queue;
+    @Param({"KSkipListQueue"})
+    private String type;
 
     @Param({"8"})
-    private String consumerCount;
-
-    @Param({"8"})
-    private String producerCount;
+    private String consumerProducerThreadCount;
 
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({"KQ"})
-    private String type;
+    private static final int NCPU = Runtime.getRuntime().availableProcessors();
+
+    private RPQ<Integer> queue;
 
     private CountDownLatch producerStarted;
     private CountDownLatch consumerStopped;
 
     private static final int DELAY_PRODUCER = 0;
     private static final int DELAY_CONSUMER = 0;
-    private static final int BURST_TOTAL = MiscUtils.roundToPowerOfTwo(1_000_000);
+    private static final int BURST_TOTAL = MiscUtils.roundToPowerOfTwo(3_200);
 
     private Producer[] producers;
     private Consumer[] consumers;
 
+
     @Setup(Level.Trial)
     public void setupQueueAndProducersAndConsumers() {
-        int producerCount =  Integer.parseInt(this.producerCount);
-        int consumerCount = Integer.parseInt(this.consumerCount);
+        int workerCount = Integer.parseInt(consumerProducerThreadCount);
+        int producerCount =  workerCount;
+        int consumerCount = workerCount;
 
-        queue = switch (type) {
-            case "KQ" -> new SBQ<>(null);
-            case "PBQ" -> new PBQ<>(); //Baseline priority blocking queue
-            default -> throw new RuntimeException();
-        };
+        queue = new KSkipListQueue<>(NCPU);
 
         producers = new Producer[producerCount];
 
@@ -75,12 +74,17 @@ public class PhaseBench {
         producerEs = Executors.newFixedThreadPool(producerCount);
         consumerEs = Executors.newFixedThreadPool(consumerCount);
 
+
+        //Size the queue initially then clear it to prevent allocations during runs
+        //Ideally we should have a constructor for this but im too lazy
     }
 
     @Setup(Level.Iteration)
     public void startAll()  {
-        int producerCount =  Integer.parseInt(this.producerCount);
-        int consumerCount = Integer.parseInt(this.consumerCount);
+        int workerCount = Integer.parseInt(consumerProducerThreadCount);
+        int producerCount =  workerCount;
+        int consumerCount = workerCount;
+
         CountDownLatch producerStarted = new CountDownLatch(1);
         CountDownLatch producerStopped = new CountDownLatch(producerCount); //also used to start consumers
         CountDownLatch consumerStopped = new CountDownLatch(consumerCount);
@@ -174,7 +178,7 @@ public class PhaseBench {
 
         @CompilerControl(CompilerControl.Mode.DONT_INLINE)
         private void produce(RPQ<Integer> q) {
-            q.add(ThreadLocalRandom.current().nextInt(1_000_000));
+            q.offer(ThreadLocalRandom.current().nextInt(1_000_000));
             if (DELAY_PRODUCER > 0) Blackhole.consumeCPU(DELAY_PRODUCER);
         }
     }
@@ -206,7 +210,7 @@ public class PhaseBench {
         @CompilerControl(CompilerControl.Mode.DONT_INLINE)
         private boolean consume(RPQ<Integer> q)
         {
-            Integer poll = q.poll();
+            Integer poll = q.relaxedPoll();
             if (DELAY_PRODUCER > 0) Blackhole.consumeCPU(DELAY_CONSUMER);
             return poll != null;
         }
@@ -230,12 +234,9 @@ public class PhaseBench {
         static void main() throws RunnerException {
             Options options = new OptionsBuilder()
                     .include(PhaseBench.class.getSimpleName())
-                    .result("results.json")
-                    .resultFormat(ResultFormatType.JSON)
-                    .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-pq")
+                    .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-mpmc-pq")
                     .build();
             new org.openjdk.jmh.runner.Runner(options).run();
-
         }
     }
 }

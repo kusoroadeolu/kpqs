@@ -1,6 +1,5 @@
-package io.github.kusoroadeolu.cbs.rmq;
+package io.github.kusoroadeolu.cbs;
 
-import io.github.kusoroadeolu.cbs.RPQ;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
@@ -69,7 +68,7 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
     }
 
     @Override
-    public boolean add(E e) {
+    public boolean offer(E e) {
         Objects.requireNonNull(e);
         int mask = this.mask;
         var arena = this.arena;
@@ -111,7 +110,7 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
         return object.loValue() == WAITER && object.casValue(WAITER, elem);
     }
 
-    public E poll() {
+    public E relaxedPoll() {
         var arena = this.arena;
         var segments = this.segments;
         var rs = resizeLock;
@@ -199,31 +198,6 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
             }
 
         }
-    }
-
-//    @Override
-//    public String toString() {
-//        StringBuilder sb = new StringBuilder();
-//        for (int i = 0; i < segments.length; ++i) {
-//            sb.append("Worker %s: %s\n".formatted(i, segments[i].size()));
-//        }
-//
-//        return sb.toString();
-//    }
-
-    @Override
-    public E peek() {
-        return null;
-    }
-
-    @Override
-    public int size() {
-        return 0;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return false;
     }
 
 
@@ -319,7 +293,7 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
     }
 
     @Override
-    public void clear() {
+    public void unsafeClear() {
         var segments = this.segments;
         for (int i = 0; i <= mask; ++i) {
             segments[i].clear();
@@ -327,5 +301,6 @@ public class KSkipListQueue<E>  extends KLPad implements RPQ<E> {
 
         var da = deleteArray;
         if (da != null) da.clear();
+        deleteArray = null;
     }
 }
