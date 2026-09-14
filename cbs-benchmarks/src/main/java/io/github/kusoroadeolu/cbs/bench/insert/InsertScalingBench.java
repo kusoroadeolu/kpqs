@@ -39,7 +39,7 @@ public class InsertScalingBench {
         synchronized (queue)
         {
             if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
-            else queue.clear();
+            else queue.unsafeClear();
         }
     }
 

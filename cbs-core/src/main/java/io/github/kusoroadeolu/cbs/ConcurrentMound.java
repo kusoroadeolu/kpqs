@@ -4,7 +4,6 @@ import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
@@ -181,7 +180,6 @@ public class ConcurrentMound<E> implements PQ<E> {
         return val;
     }
 
-    @Override
     public E peek() {
         var heap = this.heap;
         var first = heap.get(0, 1);
@@ -191,18 +189,9 @@ public class ConcurrentMound<E> implements PQ<E> {
 
 
 
-    @Override
-    public int size() {
-        return 0;
-    }
 
     @Override
-    public boolean isEmpty() {
-        return false;
-    }
-
-    @Override
-    public void clear() {
+    public void unsafeClear() {
         var heap = this.heap;
         while (true) {
             var first = heap.get(0, 1);
@@ -578,49 +567,6 @@ public class ConcurrentMound<E> implements PQ<E> {
             super(capacity);
         }
 
-        @Override
-        public String toString() {
-            int len = array.length;
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < len; ++i) {
-                sb.append(array[i]);
-            }
-
-            return sb.toString();
-        }
-    }
-
-    public String treeString() {
-        StringBuilder sb = new StringBuilder();
-        int maxIndex = (1 << depth); // last valid index at current depth
-        buildTree(1, 0 ,maxIndex, "", "", sb);
-        return sb.toString();
-    }
-
-    private void buildTree(int index, int depth ,int maxIndex, String prefix, String childPrefix, StringBuilder sb) {
-        if (index > maxIndex) return;
-
-        MoundNode<E> node = heap.get(depth, index);
-        sb.append(prefix).append(node).append("\n");
-
-        int left = index * 2;
-        int right = index * 2 + 1;
-        boolean hasLeft = left <= maxIndex;
-        boolean hasRight = right <= maxIndex;
-
-        if (hasLeft) {
-            buildTree(left, depth + 1 ,maxIndex,
-                    childPrefix + (hasRight ? "├── " : "└── "),
-                    childPrefix + (hasRight ? "│   " : "    "),
-                    sb);
-        }
-
-        if (hasRight) {
-            buildTree(right, depth + 1 ,maxIndex,
-                    childPrefix + "└── ",
-                    childPrefix + "    ",
-                    sb);
-        }
     }
 
     static int offset(int heapIndex, int level) {

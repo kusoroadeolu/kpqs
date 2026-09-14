@@ -11,7 +11,6 @@ import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
-import java.util.Comparator;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -45,7 +44,7 @@ public class MixedThrptBench {
         synchronized (queue)
         {
             if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
-            else queue.clear();
+            else queue.unsafeClear();
         }
     }
 
