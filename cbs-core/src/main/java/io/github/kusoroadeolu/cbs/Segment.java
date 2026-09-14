@@ -8,6 +8,7 @@ import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 import java.util.Comparator;
 
+import static io.github.kusoroadeolu.cbs.Node.MARKING;
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.*;
 import static io.github.kusoroadeolu.cbs.utils.PIPQConstants.DEFAULT_INITIAL_HEAP_SIZE;
 
@@ -36,13 +37,12 @@ class SegmentFields<E> extends SegmentLPad {
     final int id;
     final LeaderList<E> list;
     private static final VarHandle LEADER_LIST_SIZE = VHUtils.fieldVarHandle(MethodHandles.lookup(), SegmentFields.class, "leaderListSize", int.class);
-    int leaderListSize;
+    volatile int leaderListSize;
 
     E[] heap;
     int heapSize;
     int heapCapacity;
-    final Node<E> pred;
-    Node<E> tail;
+    Node<E> largest;
 
 
     //del capacity should be a pow of 2
@@ -55,57 +55,20 @@ class SegmentFields<E> extends SegmentLPad {
         lock = new SpinLock();
         this.id = id;
         this.list = list;
-        pred = new Node<>(id, null);
         heap = allocateArray(initialHeapSize);
     }
 
-    //serialized under lock
     public boolean add(E e) {
         var list = this.list;
-        var tail = this.tail;
+        var tail = this.largest;
         if (heapSize == 0 || comparator.compare(e, heap[0]) < 0) {
             int leaderListSize = (int) LEADER_LIST_SIZE.getAcquire(this);
-
             if (leaderListSize == PIPQConstants.MAX_LEADER_LIST_ELEMS) {
                 if (comparator.compare(e, tail.value) < 0) {
                     //Slowest path
                     Node<E> node = new Node<>(id, e);
-                    addToLeaderList(node);
-
-                    for (;;) {
-                        VarHandle.acquireFence();
-                        //we're assuming the tail is either already unlinked (in the local list) or the tail is alive
-                        //pred should never be a tail's live predecessor if (leader list size == max) with one exception, see below
-                        var prev = findLiveTailPredecessor();
-
-                        //our leader list size synced up with a far earlier read
-                        if (prev == pred) {
-                            incrementLeaderListSize();
-                            return true; // no need to pull down
-                        }
-
-                        if (prev.localNext == null || tail.isMarked()) { //tail has been unlinked a while now, just wasn't updated
-                            this.tail = prev;
-                            linkNext(prev, null);
-                            if (tail.isMarked()) incrementLeaderListSize();
-                            return true;
-                        }
-
-
-                        int res = list.moveFromLeaderList(prev, tail);
-                        if (res == 0) {
-                            this.tail = prev;
-                            linkNext(prev, null);
-                            incrementLeaderListSize();
-                            return true; //tail was deleted by someone else
-                        } else if (res == 1) {
-                            this.tail = prev;
-                            linkNext(prev, null);
-                            offerHeap(tail.value);
-                            return true;
-                        }
-                    }
-
+                    list.add(node);
+                    largest = list.moveFromLeaderList(node, tail, this);
                 } else {
                     offerHeap(e);
                 }
@@ -123,111 +86,46 @@ class SegmentFields<E> extends SegmentLPad {
     }
 
 
-    void addToLeaderList(Node<E> node) {
-        E e = node.value;
-        for (;;) {
-            Node<E> start = findLivePredecessor(e);
-            if (list.addFrom((start == pred) ? null : start, node)) {
-                var next = start.localNext;
-                linkNext(start, node); //start -> node
-                linkNext(node, next); //node -> start#next
-                return;
-            }
-        }
-
-
-    }
-
-
-    String localListString() {
-        var prev = this.pred;
-
-        if (prev.localNext == null) return "(empty)";
-
-        StringBuilder sb = new StringBuilder();
-
-        for (;;) {
-            Node<E> node = prev.localNext;
-            //if node is marked, unlink from list
-
-            if (node == null) break;
-
-            sb.append("Node: ").append(node).append(" ");
-            prev = node;
-        }
-
-        return sb.toString();
-
-    }
-
-
-    //Scans the local list for a good starting point in the leader list, while detaching (locally) dead nodes we come across
-    //Trying to mimic skip list behavior here without an actual shared skip list (which leader queue could be) but more memory
-    Node<E> findLivePredecessor(E e) {
-        var prev = this.pred;
-
-        if (prev.localNext == null) return prev;
-
-        VarHandle.acquireFence();
-
-        for (;;) {
-            Node<E> node = prev.localNext;
-            //if node is marked, unlink from list
-            if (node != null && node.isMarked())  {
-                var n = node.localNext;
-                linkNext(prev, n);
-                continue;
-            }
-
-            if (node == null || comparator.compare(e, node.value) <= 0) return prev;
-            prev = node;
-        }
-    }
-
-    //Similar to find predecessor, just that we try to avoid unlinking the tail
-    Node<E> findLiveTailPredecessor() {
-        var prev = this.pred;
-        var n = this.tail;
-
-        for (;;) {
-            Node<E> node = prev.localNext;
-            //if node is marked, unlink from list
-
-            if (node == n || node == null) return prev; //if node == null, tail has been unlinked since, was stale though
-
-            if (node.isMarked())  {
-                var next = node.localNext;
-                linkNext(prev, next);
-                continue;
-            }
-
-            prev = node;
-        }
-    }
-
-
-
-    void linkNext(Node<E> node, Node<E> next) {
-        node.localNext = next;
-    }
 
     public void helpUpsert() {
         int leaderListSize = (int) LEADER_LIST_SIZE.getAcquire(this);
-        if (heapSize == 0 || leaderListSize > PIPQConstants.UPSERT_THRESHOLD) return;
+
+        if (leaderListSize == 0) {
+            largest = null;
+            return;
+        }
+
+
+        if (heapSize == 0 || leaderListSize > PIPQConstants.HELP_UPSERT_THRESHOLD) {
+            return;
+        }
+
+
         upsert(pollHeap());
     }
 
     public void forceUpsert() {
-        int leaderListSize = (int) LEADER_LIST_SIZE.getAcquire(this);
-        if (heapSize == 0 || leaderListSize > PIPQConstants.MIN_LEADER_LIST_ELEMS) return;
+        int leaderListSize = (int) LEADER_LIST_SIZE.get(this);
+
+        if (leaderListSize == 0) {
+            largest = null;
+            return;
+        }
+
+        if (heapSize == 0 || leaderListSize > PIPQConstants.FORCE_UPSERT_THRESHOLD) return;
         upsert(pollHeap());
+
     }
 
     void upsert(E e) {
         Node<E> node = new Node<>(id, e);
-        addToLeaderList(node);
-        if (tail == null || comparator.compare(e, tail.value) > 0) {
-            this.tail = node;
+        list.add(node);
+        if (largest == null || comparator.compare(e, largest.value) > 0) {
+            this.largest = node;
+        } else if (largest.state == MARKING) {
+            largest = list.findNewTail(node, largest);
+            //prevents the issue where we deleted the only element in the leader list though we couldnt update it
+            //cause of a concurrent inserter
         }
 
         incrementLeaderListSize();
@@ -306,7 +204,7 @@ class SegmentFields<E> extends SegmentLPad {
     }
 
     public void resetSize() {
-        LEADER_LIST_SIZE.setRelease(this, 0);
+        LEADER_LIST_SIZE.setVolatile(this, 0);
     }
 
 
@@ -366,15 +264,10 @@ public class Segment<E> extends SegmentFields<E> {
         super(id, list ,cmp);
     }
 
-    public Segment(int id, int initialHeapSize, LeaderList<E> list , Comparator<? super E> cmp) {
-        super(id, initialHeapSize, list ,cmp);
-    }
-
     void clear() {
         acquire();
         try {
-            linkNext(pred, null);
-            tail = null;
+            largest = null;
             clearHeap();
             resetSize();
         } finally {

@@ -1,6 +1,6 @@
 package io.github.kusoroadeolu.cbs.bench;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -19,9 +19,9 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class MixedThrptBench {
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.PIPQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -37,7 +37,7 @@ public class MixedThrptBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 

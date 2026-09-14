@@ -1,6 +1,6 @@
 package io.github.kusoroadeolu.cbs.bench.insert;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
@@ -22,9 +22,9 @@ import java.util.concurrent.TimeUnit;
 
 //Monotonic values with some random jitter
 public class InsertScalingJitterBench {
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.PIPQ})
     private String type;
 
     final static int JITTER_RANGE = 100;
@@ -41,7 +41,7 @@ public class InsertScalingJitterBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 

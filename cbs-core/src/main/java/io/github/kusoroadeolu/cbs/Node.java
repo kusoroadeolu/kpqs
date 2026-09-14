@@ -6,12 +6,11 @@ import java.lang.invoke.VarHandle;
 public class Node<T> {
         final int id;
         public final T value;
-        private int state = NONE;
+        int state = NONE;
         static final int NONE = 0;
-        static final int MOVING = 1;
-        static final int DELETED = 2;
+        static final int MARKED = 1;
+        static final int MARKING = 2;
         Node<T> next;
-        public Node<T> localNext;
 
         public Node(int id, T value) {
             this.id = id;
@@ -37,33 +36,42 @@ public class Node<T> {
         }
 
 
-    public boolean casNext(Node<T> seen, Node<T> ours) {
+        public boolean casNext(Node<T> seen, Node<T> ours) {
             return NEXT.compareAndSet(this, seen, ours);
         }
 
-        public boolean isMarked(){
-            return state >= MOVING;
+
+        public void svNext(Node<T> next) {
+            NEXT.setVolatile(this, next);
         }
 
-        public boolean loMarked() {
-            return (int) STATE.getAcquire(this) >= MOVING;
+        public boolean isMarked(){
+            return state == MARKED;
+        }
+
+        public boolean laMarked() {
+            return (int) STATE.getAcquire(this) == MARKED;
         }
 
         public void spNext(Node<T> next) {
             NEXT.set(this, next);
         }
 
-        public boolean casMoving() {
-            return STATE.compareAndSet(this, NONE, MOVING);
+        public boolean casMarked() {
+            return STATE.compareAndSet(this, NONE, MARKED);
         }
 
-        public boolean casDeleted() {
-            return STATE.compareAndSet(this, NONE, DELETED);
+        public boolean casMarking() {
+            return STATE.compareAndSet(this, NONE, MARKING);
+        }
+
+        public void setNone() {
+            STATE.setVolatile(this, NONE);
         }
 
     @Override
     public String toString() {
-        return "Value: %s, Marked: %s".formatted(value, isMarked());
+        return "Value: %s, Marked: %s".formatted(value, (int) STATE.getVolatile(this));
     }
 
     private static final VarHandle NEXT;

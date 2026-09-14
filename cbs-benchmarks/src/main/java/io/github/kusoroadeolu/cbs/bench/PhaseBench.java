@@ -1,6 +1,6 @@
 package io.github.kusoroadeolu.cbs.bench;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
@@ -27,7 +27,7 @@ import java.util.concurrent.*;
 })
 public class PhaseBench {
 
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
 
     @Param({"8"})
     private String consumerProducerThreadCount;
@@ -35,7 +35,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.PIPQ})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -131,12 +131,12 @@ public class PhaseBench {
 
 
     static class SharedFields extends LPad {
-        final RPQ<Integer> queue;
+        final PQ<Integer> queue;
         CountDownLatch started;
         CountDownLatch stopped;
         volatile boolean isRunning;
 
-        public SharedFields(RPQ<Integer> queue) {
+        public SharedFields(PQ<Integer> queue) {
             this.queue = queue;
         }
     }
@@ -146,7 +146,7 @@ public class PhaseBench {
         final ProducerEvent event;
         final int burstValue;
 
-        public Producer(int pid, RPQ<Integer> queue, int burstValue ,ProducerEvent event) {
+        public Producer(int pid, PQ<Integer> queue, int burstValue , ProducerEvent event) {
             this.pid = pid;
             this.burstValue = burstValue;
             this.event = event;
@@ -158,7 +158,7 @@ public class PhaseBench {
             final CountDownLatch stopped = this.stopped;
             final CountDownLatch started = this.started;
             final ProducerEvent pe = this.event;
-            final RPQ<Integer> q = this.queue;
+            final PQ<Integer> q = this.queue;
             try {
                 started.await();
             } catch (InterruptedException e) {
@@ -175,14 +175,14 @@ public class PhaseBench {
 
 
         @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-        private void produce(RPQ<Integer> q) {
+        private void produce(PQ<Integer> q) {
             q.offer(ThreadLocalRandom.current().nextInt(1_000_000));
             if (DELAY_PRODUCER > 0) Blackhole.consumeCPU(DELAY_PRODUCER);
         }
     }
 
     static class Consumer extends SharedFields implements Runnable{
-        public Consumer(RPQ<Integer> queue) {
+        public Consumer(PQ<Integer> queue) {
             super(queue);
         }
 
@@ -196,7 +196,7 @@ public class PhaseBench {
                 throw new RuntimeException(e);
             }
 
-            final RPQ<Integer> q = this.queue;
+            final PQ<Integer> q = this.queue;
             while (isRunning) {
                 if (!consume(q)) break;
             }
@@ -206,7 +206,7 @@ public class PhaseBench {
         }
 
         @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-        private boolean consume(RPQ<Integer> q)
+        private boolean consume(PQ<Integer> q)
         {
             Integer poll = q.poll();
             if (DELAY_PRODUCER > 0) Blackhole.consumeCPU(DELAY_CONSUMER);

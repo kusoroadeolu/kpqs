@@ -1,10 +1,10 @@
 package io.github.kusoroadeolu.cbs.bench;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 
 import java.util.concurrent.PriorityBlockingQueue;
 
-public class PBQ<E> implements RPQ<E> {
+public class PBQ<E> implements PQ<E> {
 
     private final PriorityBlockingQueue<E> pq;
 
@@ -27,22 +27,7 @@ public class PBQ<E> implements RPQ<E> {
     }
 
     @Override
-    public E peek() {
-        return pq.peek();
-    }
-
-    @Override
-    public int size() {
-        return pq.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return size() == 0;
-    }
-
-    @Override
-    public void clear() {
+    public void unsafeClear() {
         pq.clear();
     }
 }

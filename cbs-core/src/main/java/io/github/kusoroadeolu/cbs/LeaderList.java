@@ -4,7 +4,7 @@ package io.github.kusoroadeolu.cbs;
 import java.lang.invoke.VarHandle;
 import java.util.Comparator;
 
-import static io.github.kusoroadeolu.cbs.Node.DELETED;
+import static io.github.kusoroadeolu.cbs.Node.MARKED;
 
 
 /**
@@ -29,20 +29,18 @@ public class LeaderList<T> {
     }
 
     //reads are acquired transitively through an acq fence placed by the caller
-    public boolean addFrom(Node<T> start, Node<T> node) {
-        var l = start == null ? left : start;
+    public boolean add(Node<T> node) {
+        var l = left;
         var right = this.right;
 
         var cmp = comparator;
 
          restartFromLeft: for (;;) {
             var pred = l;
+            VarHandle.acquireFence();
             var curr = pred.lpNext();
             for (;;) {
-                if (curr.isDummy()) {
-                    if (pred == l) return false;
-                    continue restartFromLeft;
-                }
+                if (curr.isDummy()) continue restartFromLeft;
 
                 if (curr.isMarked()) {
                     curr = helpUnlink(pred, curr); //Only shift curr
@@ -63,23 +61,43 @@ public class LeaderList<T> {
         }
     }
 
+    public Node<T> findNewTail(Node<T> start, Node<T> old) {
+            Node<T> largest = start;
+            VarHandle.acquireFence();
+            var curr = start.lpNext();
+            for (;;) {
+                if (curr.isMarked() || curr.isDummy()) {
+                    curr = curr.lpNext(); //Only shift curr
+                    continue;
+                }
+
+                int res = compare(old, curr, right, comparator);
+                if (res < 0) return largest;
+                if (curr.id == old.id) largest = curr;
+                curr = curr.lpNext();
+            }
+    }
+
 
     // 0 failed (the deleter deleted the node, no need to pull down),
     // 1 succeeded,
     // -1 we landed on a dummy node (our from could be deleted, so we'll need to rescan our local list)
     //reads are acquired transitively through the acq fence placed by the caller
-    public int moveFromLeaderList(Node<T> start, Node<T> node) {
-        var l = start == null ? left : start;
+    public Node<T> moveFromLeaderList(Node<T> start, Node<T> largest, SegmentFields<T> segment) {
+        var l = start;
         var right = this.right;
         var cmp = comparator;
+        Node<T> prevSegmentNode = start;
 
         restartFromLeft: for (; ;) {
+            VarHandle.acquireFence();
             var pred = l;
             var curr = pred.lpNext();
 
             for (;;) {
+                //here an optimization could be used to start from prevSegmentNode instead
                 if (curr.isDummy()) {
-                    if (pred == l) return -1;
+                    if (pred == start) l = left;
                     continue restartFromLeft;
                 }
 
@@ -88,13 +106,21 @@ public class LeaderList<T> {
                     continue;
                 }
 
-                int res = compare(node, curr, right,cmp);
-                if (res < 0) return 0; //someone deleted our node
-                else if (res == 0) {
-                    boolean marked = curr.casMoving();
-                    helpUnlink(pred, curr);
-                    return marked ? 1 : 0;
+                if (curr == largest) {
+                    boolean marked = curr.casMarked();
+                    if (marked) { // here if we fail to mark, a deleter could have set our node to marking, so we need to retry
+                        helpUnlink(pred, curr);
+                        return prevSegmentNode;
+                    }
+
+                    continue restartFromLeft;
                 }
+
+                int res = compare(largest, curr, right,cmp);
+
+                //Debug in case this invariant (tail isn't in the list is violated). I intentionally didn't use print stmts here
+                if (res < 0) throw new RuntimeException("Invariant violated. This should never happen: %s\n List: %s\nStart: %s\nSize: %s".formatted(largest, nodes(largest.id), start, segment.leaderListSize)); //someone deleted our tail node
+                if (largest.id == curr.id) prevSegmentNode = curr;
 
                 pred = curr; curr = pred.lpNext();
             }
@@ -103,26 +129,37 @@ public class LeaderList<T> {
     }
 
     public Node<T> poll() {
-        var l = left;
+        var pred = left;
         var right = this.right;
         for (; ;) {
-            var pred = l;
             var curr = pred.laNext();
+
+            if (curr == right) return null;
+
 
             if (curr.isDummy()) {
                 continue; //If we find a dummy node, restart from left
             }
 
-            if (curr.loMarked()) {
+            if (curr.laMarked()) {
                 helpUnlink(pred, curr);
                 continue;
             }
 
-            if (curr == right) return null;
+            boolean marking = curr.casMarking();
 
-            boolean marked = curr.casDeleted();
-            helpUnlink(pred, curr);
-            if (marked) return curr;
+            if (marking) {
+                //hw
+                Node<T> n = casNextDummy(curr); //n is the dummy's next so we should
+                if (pred.casNext(curr, n)) {
+                    return curr; //fails if another node was inserted before the left most node
+                }
+
+                curr.svNext(n);
+                curr.setNone(); //first remove the dummy node, then mark our status as none. Doing it in this order is important
+            }
+
+            //if we failed to mark next
         }
     }
 
@@ -135,7 +172,7 @@ public class LeaderList<T> {
         for (; ;) {
             if (curr == right) break;
 
-            if (!curr.isDummy() && !curr.loMarked() && curr.id == id) {
+            if (!curr.isDummy() && curr.id == id) {
                  sb.append("Node: " ).append(curr).append(", ");
             }
 
@@ -146,29 +183,35 @@ public class LeaderList<T> {
         return sb.toString();
     }
 
-    //Returns the next undead node
-    Node<T> helpUnlink(Node<T> pred, Node<T> curr) {
-        Node<T> n = curr.lpNext();
-        Node<T> d = allocateDummyNode();
+
+    Node<T> casNextDummy(Node<T> curr) {
+        Node<T> next = curr.lpNext();
+        Node<T> dummy = allocateDummyNode();
 
         for (;;) {
-            if (n.isDummy()) {
-                n = n.lpNext();
+            if (next.isDummy()) {
+                next = next.lpNext();
                 break;
             } else {
-                d.spNext(n);
-                if (curr.casNext(n, d)) break;
+                dummy.spNext(next);
+                if (curr.casNext(next, dummy)) break;
             }
 
-            n = curr.lpNext();
+            next = curr.lpNext();
         }
 
+        return next; //returns the new next
+    }
+
+    //Returns the next undead node
+    Node<T> helpUnlink(Node<T> pred, Node<T> curr) {
+        Node<T> n = casNextDummy(curr);
         pred.casNext(curr, n); //try to link. failure is alright, another node has unlinked this , all we need is the new unmarked (at this point) curr node
         return n;
     }
 
     static <E>Node<E> allocateDummyNode() {
-        return new Node<>(null, DELETED);
+        return new Node<>(null, MARKED);
     }
 
     int compare(Node<T> node, Node<T> curr, Node<T> right, Comparator<Node<T>> comparator) {

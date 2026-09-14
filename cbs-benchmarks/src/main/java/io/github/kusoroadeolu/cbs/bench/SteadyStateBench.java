@@ -1,8 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
-import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
@@ -18,16 +17,16 @@ import static io.github.kusoroadeolu.cbs.utils.MiscUtils.xorShift;
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 10, time = 1)
+@Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class SteadyStateBench {
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.PIPQ})
     private String type;
 
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
 
-    final static int STEADY_STATE_SIZE = 10_000;
+    final static int STEADY_STATE_SIZE = 132_000;
     final static int RANGE = 1_000_000;
 
 
@@ -35,11 +34,9 @@ public class SteadyStateBench {
     public void setup() {
         queue = RPQFactory.createRPQ(type, STEADY_STATE_SIZE);
 
-        System.out.println("Here");
         for (int i = 0; i < STEADY_STATE_SIZE; i++) {
             queue.offer(ThreadLocalRandom.current().nextInt(0, RANGE));
         }
-        System.out.println("Done");
     }
 
     @AuxCounters(AuxCounters.Type.OPERATIONS)
@@ -64,8 +61,8 @@ public class SteadyStateBench {
 
 
 
-    boolean doWork(RPQ<Integer> rpq, PollCounters counters) {
-        Integer i = rpq.poll();
+    boolean doWork(PQ<Integer> PQ, PollCounters counters) {
+        Integer i = PQ.poll();
         if (i == null) {
             counters.pollMiss++;
             return false;

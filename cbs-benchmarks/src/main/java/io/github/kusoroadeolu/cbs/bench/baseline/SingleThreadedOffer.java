@@ -1,6 +1,6 @@
 package io.github.kusoroadeolu.cbs.bench.baseline;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
@@ -16,12 +16,12 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class SingleThreadedOffer {
     private static final int OPS = 1 << 15;
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
     private volatile boolean dontUnroll = true;
 
     final static int RANGE = 1_000_000;
 
-    @Param({RPQFactory.KQ, RPQFactory.PBQ})
+    @Param({RPQFactory.PIPQ, RPQFactory.PBQ})
     public String type;
 
 
@@ -32,7 +32,7 @@ public class SingleThreadedOffer {
 
     @TearDown(Level.Invocation)
     public void teardown() {
-        queue.clear();
+        queue.unsafeClear();
     }
 
     @Benchmark
@@ -45,7 +45,7 @@ public class SingleThreadedOffer {
     }
 
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-    public boolean offer(RPQ<Integer> queue, Integer i) {
+    public boolean offer(PQ<Integer> queue, Integer i) {
         return queue.offer(i);
     }
 

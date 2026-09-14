@@ -1,6 +1,8 @@
 package io.github.kusoroadeolu.cbs;
 
+import io.github.kusoroadeolu.cbs.hopper.Hopper;
 import io.github.kusoroadeolu.cbs.hopper.HopperItem;
+import io.github.kusoroadeolu.cbs.hopper.IdleStrategy;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import io.github.kusoroadeolu.cbs.utils.PIPQConstants;
 
@@ -31,9 +33,13 @@ class PollFieldPad {
 class PollFields extends PollFieldPad {
 
     final Object lock;
+    final Hopper<PollRequest> hopper;
+    final IdleStrategy strategy;
 
     PollFields() {
-        lock = new Object();
+       lock = new Object();
+        hopper = new Hopper<>();
+        strategy = IdleStrategy.spin();
     }
 
     static class PollRequest extends HopperItem<PollRequest> {
@@ -69,20 +75,29 @@ class KLPad extends PollFields{
 /*
 * This is my shot at building the structure from the paper PIPQ
 * The major issue with my version is that the structure leader list delete min operation is will fail if a concurrent
-* insert happens at the left sentinel right before a delete min occurs. This prevents the issue where the lead largest or tail (in my case)
+* insert happens at the left sentinel right before a delete min occurs. This prevents the issue where the largest node in the leader list for a segment
 * is deleted when there are smaller elements for that node in the leader list. This however can happen with my 2 phase deletion mechanism
 *
 * The mark bit mechanism they used doesnt cleanly translate to Java.
 * I think you can replicate it in java using AtomicMarkableReference, but honestly its API is genuinely bad and I'd honestly rather not
 *
 * In my case we maintain a local linked list which we periodically clean and use to determine the actual shape of the leader list
-* Though honestly this still has its issues and im not even sure if its fully correct. I'd write some jcstress tests for this but idk
-* what I'd even want to test here. Besides that this is a pretty promising structure but unfortunately can't port it into java without shoehorning somethings
+* Though honestly this still has its issues and im not even sure if its fully correct.
+* Besides that this is a pretty promising structure but unfortunately can't port it into java without shoehorning some things
 *
-* Usually my priority queues have benchmark numbers, but this doesnt since im not fully sure its even correct.
 *
+*
+* Later:
+* Ok so I ditched the local linked list approach and  I decided to come up with a new 3 phase deletion mechanism that solves the issue of an insert sneaking past next
+* This fully solves the issue of the largest value in the list for a segment getting deleted before smaller values
+* There is doesnt solve one issue where the there's only one value for a segment in the leader list (which would ideally be the tail),
+* a deleter marks it and then removes it, then a bunch of insertions flood in and then we're one unlucky insertion only notices the stale tail
+* when trying to pull it down from the leader list
+*
+* I think the local linked list approach does still make sense though as a probable optimization to find a good starting point for traversing the leader
+* list though that optimization isn't warranted yet
 * */
-public class PIPQ<E> extends KLPad implements RPQ<E> {
+public class PIPQ<E> extends KLPad implements PQ<E> {
 
     private static final int NCPU = Runtime.getRuntime().availableProcessors();
     private static final int PROBE_DISTANCE = NCPU >>> 1; //max length to probe for a worker to acquire before retrying
@@ -157,77 +172,77 @@ public class PIPQ<E> extends KLPad implements RPQ<E> {
     }
 
     public E poll() {
-        var list = this.list;
-        var segments = this.segments;
-        int leaderListSize = -1;
-        int id = -1;
-        E value;
-        //The simple lock approach is actually much faster and has a lower latency combined to the combining approach
-        synchronized (lock) {
-            var polled = list.poll();
-            if (polled == null) return null;
-            leaderListSize = segments[(id = polled.id)].decrementLeaderListSize();
-            if (leaderListSize <= PIPQConstants.MIN_LEADER_LIST_ELEMS) {
-                forceUpsert(segments[id]);
-                return polled.value;
-            }
-
-            value = polled.value;
-        }
-
-
-        if (leaderListSize <= PIPQConstants.UPSERT_THRESHOLD) {
-            tryUpsert(segments[id]);
-        }
-
-        return value;
-
-//        var h =  hopper;
 //        var list = this.list;
 //        var segments = this.segments;
-//        PollRequest request = new PollRequest();
-//        boolean combine = h.add(request);
-//        if (combine) {
-//            var items = h.dump(request);
-//            try {
-//                while (items.hasNext()) {
-//                    var item = items.next();
-//                    var polled = list.poll();
-//
-//                    if (polled == null) {
-//                        item.value = null;
-//                        item.apply();
-//                        continue;
-//                    }
-//
-//                    int id = polled.id;
-//                    var segment = segments[id];
-//                    var leaderListSize = segment.decrementLeaderListSize();
-//
-//                    item.id = id;
-//                    item.size = leaderListSize;
-//                    item.value = polled.value;
-//                    item.apply();
-//
-//                    if (leaderListSize <= PIPQConstants.MIN_LEADER_LIST_ELEMS) forceUpsert(segment);
-//                }
-//
-//                return (E) request.value;
-//            }finally {
-//                h.unlock();
+//        int leaderListSize = -1;
+//        int id = -1;
+//        E value;
+//        //The simple lock approach is actually much faster and has a lower latency combined to the combining approach
+//        synchronized (lock) {
+//            var polled = list.poll();
+//            if (polled == null) return null;
+//            leaderListSize = segments[(id = polled.id)].decrementLeaderListSize();
+//            if (leaderListSize <= PIPQConstants.FORCE_UPSERT_THRESHOLD) {
+//                forceUpsert(segments[id]);
+//                return polled.value;
 //            }
+//
+//            value = polled.value;
 //        }
 //
-//        var strategy = this.strategy;
-//        int spins = 0;
-//        while (!request.isApplied()) {
-//            spins = strategy.idle(spins);
+//
+//        if (leaderListSize <= PIPQConstants.HELP_UPSERT_THRESHOLD) {
+//            tryUpsert(segments[id]);
 //        }
 //
-//        E val = (E) request.value;
-//        int size = request.size;
-//        if (size != -1 && size <= PIPQConstants.UPSERT_THRESHOLD) tryUpsert(segments[request.id]);
-//        return val;
+//        return value;
+
+        var h =  hopper;
+        var list = this.list;
+        var segments = this.segments;
+        PollRequest ours = new PollRequest();
+        boolean combine = h.add(ours);
+        if (combine) {
+            var requests = h.dump(ours);
+            try {
+                while (requests.hasNext()) {
+                    var request = requests.next();
+                    var polled = list.poll();
+
+                    if (polled == null) {
+                        request.value = null;
+                        request.apply();
+                        continue;
+                    }
+
+                    int id = polled.id;
+                    var segment = segments[id];
+                    var size = segment.decrementLeaderListSize();
+
+                    request.id = id;
+                    request.size = size;
+                    request.value = polled.value;
+                    request.apply();
+
+                    if (size <= PIPQConstants.FORCE_UPSERT_THRESHOLD) forceUpsert(segment);
+                }
+
+                return (E) ours.value;
+            }finally {
+                h.unlock();
+            }
+        }
+
+        var strategy = this.strategy;
+        int spins = 0;
+        while (!ours.isApplied()) {
+            spins = strategy.idle(spins);
+        }
+
+        E val = (E) ours.value;
+        int size = ours.size;
+        if (ours.id != -1 && (size > PIPQConstants.FORCE_UPSERT_THRESHOLD && size <= PIPQConstants.HELP_UPSERT_THRESHOLD)) tryUpsert(segments[ours.id]);
+        return val;
     }
 
     void forceUpsert(Segment<E> segment) {
@@ -262,7 +277,7 @@ public class PIPQ<E> extends KLPad implements RPQ<E> {
 
 
     //only for benchmarks (per iteration)
-    public void clear() {
+    public void unsafeClear() {
         var segments = this.segments;
         for (int i = 0; i < (mask + 1); ++i) {
             segments[i].clear();
@@ -270,23 +285,4 @@ public class PIPQ<E> extends KLPad implements RPQ<E> {
 
         while (list.poll() != null);
     }
-
-    @Override
-    public E peek() {
-        return null;
-    }
-
-    @Override
-    public int size() {
-        return 0;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return false;
-    }
-
-
-
-
 }

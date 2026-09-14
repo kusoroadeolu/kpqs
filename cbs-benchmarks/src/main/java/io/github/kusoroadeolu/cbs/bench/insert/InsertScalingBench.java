@@ -1,8 +1,7 @@
 package io.github.kusoroadeolu.cbs.bench.insert;
 
-import io.github.kusoroadeolu.cbs.RPQ;
+import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
-import io.github.kusoroadeolu.cbs.bench.PhaseBench;
 import io.github.kusoroadeolu.cbs.bench.factory.RPQFactory;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -21,9 +20,9 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 2, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class InsertScalingBench {
-    private RPQ<Integer> queue;
+    private PQ<Integer> queue;
 
-    @Param({RPQFactory.KQ})
+    @Param({RPQFactory.PIPQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -45,7 +44,7 @@ public class InsertScalingBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 
@@ -56,6 +55,30 @@ public class InsertScalingBench {
         boolean offer = queue.offer(nextInt());
         bh.consume(offer);
     }
+
+    @Threads(6)
+    @Benchmark
+    public void six_full_insert(Blackhole bh) {
+        boolean offer = queue.offer(nextInt());
+        bh.consume(offer);
+
+    }
+
+    @Threads(4)
+    @Benchmark
+    public void four_full_insert(Blackhole bh) {
+        boolean offer = queue.offer(nextInt());
+        bh.consume(offer);
+    }
+
+    @Threads(2)
+    @Benchmark
+    public void two_full_insert(Blackhole bh) {
+        boolean offer = queue.offer(nextInt());
+        bh.consume(offer);
+    }
+
+
     int nextInt() {
         return ThreadLocalRandom.current().nextInt(0, RANGE);
     }
