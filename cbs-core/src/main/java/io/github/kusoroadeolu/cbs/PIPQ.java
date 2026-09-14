@@ -1,14 +1,11 @@
 package io.github.kusoroadeolu.cbs;
 
-import io.github.kusoroadeolu.cbs.hopper.Hopper;
 import io.github.kusoroadeolu.cbs.hopper.HopperItem;
-import io.github.kusoroadeolu.cbs.hopper.IdleStrategy;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import io.github.kusoroadeolu.cbs.utils.PIPQConstants;
 
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.offset;
@@ -69,6 +66,22 @@ class KLPad extends PollFields{
     }
 }
 
+/*
+* This is my shot at building the structure from the paper PIPQ
+* The major issue with my version is that the structure leader list delete min operation is will fail if a concurrent
+* insert happens at the left sentinel right before a delete min occurs. This prevents the issue where the lead largest or tail (in my case)
+* is deleted when there are smaller elements for that node in the leader list. This however can happen with my 2 phase deletion mechanism
+*
+* The mark bit mechanism they used doesnt cleanly translate to Java.
+* I think you can replicate it in java using AtomicMarkableReference, but honestly its API is genuinely bad and I'd honestly rather not
+*
+* In my case we maintain a local linked list which we periodically clean and use to determine the actual shape of the leader list
+* Though honestly this still has its issues and im not even sure if its fully correct. I'd write some jcstress tests for this but idk
+* what I'd even want to test here. Besides that this is a pretty promising structure but unfortunately can't port it into java without shoehorning somethings
+*
+* Usually my priority queues have benchmark numbers, but this doesnt since im not fully sure its even correct.
+*
+* */
 public class PIPQ<E> extends KLPad implements RPQ<E> {
 
     private static final int NCPU = Runtime.getRuntime().availableProcessors();
