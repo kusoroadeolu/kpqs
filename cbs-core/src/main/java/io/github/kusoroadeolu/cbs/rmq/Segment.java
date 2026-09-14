@@ -43,7 +43,6 @@ class SegmentFields<E> extends SegmentLPad {
     E[] heap;
     int heapSize;
     int heapCapacity;
-  // final SpinLock heapAllocationLock;
 
 
     //del capacity should be a pow of 2
@@ -60,7 +59,6 @@ class SegmentFields<E> extends SegmentLPad {
         queue = q;
         this.id = id;
         heap = allocateArray(Math.max(initialHeapSize, insBufferCap));
-        //  heapAllocationLock = new SpinLock();
     }
 
     public boolean add(E e) {
@@ -122,12 +120,6 @@ class SegmentFields<E> extends SegmentLPad {
                 insBuffer.remove();
             }
 
-//            int cap = delBuffer.capacity();
-//            E toAdd;
-//            for (int i = 0; i < cap && (toAdd = pollHeap()) != null; ++i) {
-//                delBuffer.add(toAdd);
-//                publishId();
-//            }
 
             E added = pollHeap();
             if (added != null) {
@@ -140,35 +132,6 @@ class SegmentFields<E> extends SegmentLPad {
         SIZE.getAndAddRelease(this, -1);
         return result;
     }
-
-//    boolean tryGrow(Object[] array, int heapCapacity) {
-//        release();
-//        E[] newArray = null;
-//        int newCapacity = growth(heapCapacity);
-//        if (heapAllocationLock.tryLock()) {
-//            try {
-//                if (array == this.heap)
-//                    newArray = (E[]) new Object[newCapacity];
-//            } finally {
-//                heapAllocationLock.unlock();
-//            }
-//        }
-//
-//        if (newArray == null) { //another thread is allocating, try another segment
-//            Thread.yield();
-//            return false;
-//        }
-//
-//        acquire();
-//
-//        if (array == this.heap) {
-//            System.arraycopy(heap, 0, newArray, 0, heapSize);
-//            this.heap = newArray;
-//            this.heapCapacity = newCapacity;
-//        }
-//
-//        return true;
-//    }
 
     public void addToHeap(E e) {
         int s = heapSize;
