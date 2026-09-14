@@ -22,27 +22,12 @@ public class PBQ<E> implements RPQ<E> {
     }
 
     @Override
-    public E poll() {
+    public E relaxedPoll() {
         return pq.poll();
     }
 
     @Override
-    public E peek() {
-        return pq.peek();
-    }
-
-    @Override
-    public int size() {
-        return pq.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return size() == 0;
-    }
-
-    @Override
-    public void clear() {
+    public void unsafeClear() {
         pq.clear();
     }
 }

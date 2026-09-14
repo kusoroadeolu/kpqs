@@ -208,7 +208,7 @@ public class PhaseBench {
         @CompilerControl(CompilerControl.Mode.DONT_INLINE)
         private boolean consume(RPQ<Integer> q)
         {
-            Integer poll = q.poll();
+            Integer poll = q.relaxedPoll();
             if (DELAY_PRODUCER > 0) Blackhole.consumeCPU(DELAY_CONSUMER);
             return poll != null;
         }

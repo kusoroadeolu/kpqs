@@ -32,7 +32,7 @@ public class SingleThreadedOffer {
 
     @TearDown(Level.Invocation)
     public void teardown() {
-        queue.clear();
+        queue.unsafeClear();
     }
 
     @Benchmark

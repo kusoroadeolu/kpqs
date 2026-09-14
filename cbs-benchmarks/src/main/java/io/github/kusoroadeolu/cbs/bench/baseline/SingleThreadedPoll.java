@@ -51,7 +51,7 @@ public class SingleThreadedPoll {
 
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     public int poll(RPQ<Integer> queue) {
-        return queue.poll();
+        return queue.relaxedPoll();
     }
 
 

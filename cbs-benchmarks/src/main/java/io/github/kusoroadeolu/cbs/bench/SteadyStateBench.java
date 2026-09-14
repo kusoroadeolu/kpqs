@@ -62,7 +62,7 @@ public class SteadyStateBench {
 
 
     boolean doWork(RPQ<Integer> rpq, PollCounters counters) {
-        Integer i = rpq.poll();
+        Integer i = rpq.relaxedPoll();
         if (i == null) {
             counters.pollMiss++;
             return false;

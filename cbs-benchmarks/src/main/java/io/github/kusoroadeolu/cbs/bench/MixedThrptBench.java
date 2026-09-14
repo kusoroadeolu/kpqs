@@ -37,7 +37,7 @@ public class MixedThrptBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 
@@ -66,7 +66,7 @@ public class MixedThrptBench {
     @GroupThreads(2)
     @Benchmark
     public void twenty_five_poll(Blackhole bh, PollCounters counters) {
-        Integer result = queue.poll();
+        Integer result = queue.relaxedPoll();
         bh.consume(result);
         if (result == null) {
             counters.pollMiss++;
@@ -86,7 +86,7 @@ public class MixedThrptBench {
     @GroupThreads(4)
     @Benchmark
     public void fifty_poll(Blackhole bh, PollCounters counters) {
-        Integer result = queue.poll();
+        Integer result = queue.relaxedPoll();
         bh.consume(result);
         if (result == null) {
             counters.pollMiss++;

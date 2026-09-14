@@ -35,7 +35,7 @@ public class InsertScalingBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            queue.clear();
+            queue.unsafeClear();
         }
     }
 
@@ -98,30 +98,3 @@ public class InsertScalingBench {
 │  MultiQueue 21.826 ± 1.052 ops/us                                           │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 **/
-
-
-/*
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.eight_full_insert ─╮
-│  Type                  Score  Error   Unit                             │
-│  --------------------- ------ ------- ------                           │
-│  PriorityBlockingQueue 13.907 ± 0.694 ops/us                           │
-╰────────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.four_full_insert ─╮
-│  Type                  Score  Error   Unit                            │
-│  --------------------- ------ ------- ------                          │
-│  PriorityBlockingQueue 13.719 ± 0.900 ops/us                          │
-╰───────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.six_full_insert ─╮
-│  Type                  Score  Error   Unit                           │
-│  --------------------- ------ ------- ------                         │
-│  PriorityBlockingQueue 13.756 ± 0.695 ops/us                         │
-╰──────────────────────────────────────────────────────────────────────╯
-
-╭ io.github.kusoroadeolu.cbs.bench.InsertScalingBench.two_full_insert ─╮
-│  Type                  Score  Error   Unit                           │
-│  --------------------- ------ ------- ------                         │
-│  PriorityBlockingQueue 10.982 ± 0.364 ops/us                         │
-╰──────────────────────────────────────────────────────────────────────╯
-* */

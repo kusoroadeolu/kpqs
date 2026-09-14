@@ -97,7 +97,7 @@ public class MultiQueue<E> implements RPQ<E> {
         return null;
     }
 
-    public E poll() {
+    public E relaxedPoll() {
         var segments = this.segments;
         var cmp = this.comparator;
         var mask = this.mask;
@@ -169,28 +169,9 @@ public class MultiQueue<E> implements RPQ<E> {
         return sb.toString();
     }
 
-    public void clear() {
+    public void unsafeClear() {
         for (int i = 0; i <= mask; ++i) {
             segments[i].clear();
         }
     }
-
-    @Override
-    public E peek() {
-        return null;
-    }
-
-    @Override
-    public int size() {
-        return 0;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return false;
-    }
-
-
-
-
 }
