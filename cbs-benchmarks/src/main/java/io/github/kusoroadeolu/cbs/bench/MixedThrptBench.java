@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 public class MixedThrptBench {
     private PQ<Integer> queue;
 
+    private static final int PREFILL = 100_000;
+
     @Param({PQFactory.MOUNDS})
     private String type;
 
@@ -36,15 +38,14 @@ public class MixedThrptBench {
 
     @TearDown(Level.Iteration)
     public void fillQ() {
-        for (int i = 0; i < 100_000; ++i) queue.offer(nextInt());
+        for (int i = 0; i < PREFILL; ++i) queue.offer(nextInt());
     }
 
     @TearDown(Level.Iteration)
     public void emptyQ() {
         synchronized (queue)
         {
-            if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
-            else queue.unsafeClear();
+            queue.unsafeClear();
         }
     }
 

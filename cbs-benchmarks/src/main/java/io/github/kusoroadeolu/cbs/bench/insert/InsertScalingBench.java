@@ -1,6 +1,5 @@
 package io.github.kusoroadeolu.cbs.bench.insert;
 
-import io.github.kusoroadeolu.cbs.ConcurrentMound;
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.JvmArgs;
 import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
@@ -38,8 +37,7 @@ public class InsertScalingBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
-            else queue.unsafeClear();
+            queue.unsafeClear();
         }
     }
 

@@ -193,31 +193,13 @@ public class ConcurrentMound<E> implements PQ<E> {
     @Override
     public void unsafeClear() {
         var heap = this.heap;
-        while (true) {
-            var first = heap.get(0, 1);
-            if (first == null || first.laDeleted()) return;
-            first.lock();
-
-            if (first.lpDeleted()) {
-                assert first.peek() == null;
-                first.unlock();
-                return;
-            }
-
-            first.clear();
-            moundify(heap, first);
-        }
-    }
-
-    //only for use in jmh teardown benchmarks
-    public void clearUnsafe() {
-        var heap = this.heap;
         for (int level = 0; level < depth; ++level) {
             var a = heap.lvArray(level);
             heap.casArray(level, a, new ZeroIndexedArray<>(1 << level));
         }
     }
 
+    //only for use in jmh teardown benchmarks
     void moundify(SegmentedArray<MoundNode<E>> heap, MoundNode<E> start) {
         MoundNode<E> parent = start;
         int parentIndex = 1;

@@ -39,8 +39,7 @@ public class InsertScalingJitterBench {
     public void emptyQ() {
         synchronized (queue)
         {
-            if (PQFactory.MOUNDS.equals(type)) ((ConcurrentMound<Integer>)queue).clearUnsafe();
-            else queue.unsafeClear();
+            queue.unsafeClear();
         }
     }
 
