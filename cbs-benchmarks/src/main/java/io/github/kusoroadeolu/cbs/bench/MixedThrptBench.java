@@ -110,29 +110,25 @@ public class MixedThrptBench {
 }
 
 /*
-╭ io.github.kusoroadeolu.cbs.bench.InsertThrptBench.eight_insert ─╮
-│  Type Score Error   Unit                                        │
-│  ---- ----- ------- ------                                      │
-│  KQ   2.732 ± 0.199 ops/us                                      │
-╰─────────────────────────────────────────────────────────────────╯
-╭ io.github.kusoroadeolu.cbs.bench.InsertThrptBench.ratio_4_4 ─╮
-│  Type Role      Score Error   Unit                           │
-│  ---- --------- ----- ------- ------                         │
-│  KQ   four_add  4.499 ± 0.148 ops/us                         │
-│  KQ   four_poll 3.614 ± 0.117 ops/us                         │
-│  KQ   pollHit   3.629 ± 0.111 ops/us                         │
-│  KQ   pollMiss  0.000 ± 0.000 ops/us                         │
-│  KQ   aggregate 8.113 ± 0.263 ops/us                         │
-╰──────────────────────────────────────────────────────────────╯
-╭ io.github.kusoroadeolu.cbs.bench.InsertThrptBench.ratio_6_2 ─╮
-│  Type Role      Score Error   Unit                           │
-│  ---- --------- ----- ------- ------                         │
-│  KQ   pollHit   2.902 ± 0.096 ops/us                         │
-│  KQ   pollMiss  0.000 ± 0.000 ops/us                         │
-│  KQ   six_add   4.281 ± 0.081 ops/us                         │
-│  KQ   two_poll  2.888 ± 0.094 ops/us                         │
-│  KQ   aggregate 7.169 ± 0.169 ops/us                         │
-╰──────────────────────────────────────────────────────────────╯
+╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_4_4 ─╮
+│  Type           Role      Score Error   Unit                │
+│  -------------- --------- ----- ------- ------              │
+│  KSkipListQueue four_add  4.314 ± 0.122 ops/us              │
+│  KSkipListQueue four_poll 3.223 ± 0.111 ops/us              │
+│  KSkipListQueue pollHit   3.237 ± 0.112 ops/us              │
+│  KSkipListQueue pollMiss  0.000 ± 0.000 ops/us              │
+│  KSkipListQueue aggregate 7.536 ± 0.231 ops/us              │
+╰─────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_6_2 ─╮
+│  Type           Role      Score Error   Unit                │
+│  -------------- --------- ----- ------- ------              │
+│  KSkipListQueue pollHit   2.525 ± 0.079 ops/us              │
+│  KSkipListQueue pollMiss  0.000 ± 0.000 ops/us              │
+│  KSkipListQueue six_add   4.137 ± 0.091 ops/us              │
+│  KSkipListQueue two_poll  2.518 ± 0.079 ops/us              │
+│  KSkipListQueue aggregate 6.654 ± 0.167 ops/us              │
+╰─────────────────────────────────────────────────────────────╯
 * */
 
 
