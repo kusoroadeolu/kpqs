@@ -146,7 +146,7 @@ public class LeaderList<T> {
             }
 
             if (curr.laMarked()) {
-                helpUnlink(pred, curr);
+                helpUnlinkAcquire(pred, curr);
                 continue;
             }
 
