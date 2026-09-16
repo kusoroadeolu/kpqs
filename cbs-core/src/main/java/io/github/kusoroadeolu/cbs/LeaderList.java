@@ -61,6 +61,10 @@ public class LeaderList<T> {
         }
     }
 
+    public boolean add(T e) {
+        return add(new Node<>(0, e));
+    }
+
     public Node<T> findNewTail(Node<T> old) {
             Node<T> largest = null;
             VarHandle.acquireFence(); //do we really need this or will the one placed earlier suffice?
@@ -201,6 +205,31 @@ public class LeaderList<T> {
         }
 
         return next; //returns the new next
+    }
+
+    Node<T> casNextDummyAcquire(Node<T> curr) {
+        Node<T> next = curr.laNext();
+        Node<T> dummy = allocateDummyNode();
+
+        for (;;) {
+            if (next.isDummy()) {
+                next = next.laNext();
+                break;
+            } else {
+                dummy.spNext(next);
+                if (curr.casNext(next, dummy)) break;
+            }
+
+            next = curr.laNext();
+        }
+
+        return next; //returns the new next
+    }
+
+    Node<T> helpUnlinkAcquire(Node<T> pred, Node<T> curr) {
+        Node<T> n = casNextDummyAcquire(curr);
+        pred.casNext(curr, n); //try to link. failure is alright, another node has unlinked this , all we need is the new unmarked (at this point) curr node
+        return n;
     }
 
     //Returns the next undead node

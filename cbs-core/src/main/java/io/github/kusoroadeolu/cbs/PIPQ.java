@@ -177,7 +177,6 @@ public class PIPQ<E> extends KLPad implements PQ<E> {
 //        int leaderListSize = -1;
 //        int id = -1;
 //        E value;
-//        //The simple lock approach is actually much faster and has a lower latency combined to the combining approach
 //        synchronized (lock) {
 //            var polled = list.poll();
 //            if (polled == null) return null;
