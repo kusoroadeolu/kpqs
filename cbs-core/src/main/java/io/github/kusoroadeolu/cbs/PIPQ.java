@@ -218,7 +218,8 @@ public class PIPQ<E> extends KLPad implements PQ<E> {
         }
 
         var backoff = this.backoff;
-        while (!ours.isApplied()) backoff.snooze();
+        int step = 0;
+        while (!ours.isApplied()) step = backoff.snooze(step);
 
         E val = (E) ours.value;
         int size = ours.size;

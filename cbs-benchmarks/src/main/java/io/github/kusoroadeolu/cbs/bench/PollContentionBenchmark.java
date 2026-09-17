@@ -37,7 +37,6 @@ public class PollContentionBenchmark {
     public void fill() {
         queue = PQFactory.createPQ(type,  Runtime.getRuntime().availableProcessors(), 500_000);
 
-        // Fill single-threaded so setup cost doesn't pollute the measured region.
         for (int i = 0; i < FILL_SIZE; i++) {
             int v = ThreadLocalRandom.current().nextInt();
             queue.offer(v);
@@ -82,27 +81,31 @@ public class PollContentionBenchmark {
 }
 
 /*
-* ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue1 ─╮
-│  Type Score Error   Unit                                             │
-│  ---- ----- ------- ------                                           │
-│  PIPQ 0.768 ± 0.149 ops/us                                           │
+╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue1 ─╮
+│  Type                  Score Error   Unit                            │
+│  --------------------- ----- ------- ------                          │
+│  PIPQ                  0.828 ± 0.158 ops/us                          │
+│  PriorityBlockingQueue 1.078 ± 0.036 ops/us                          │
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue2 ─╮
-│  Type Score Error   Unit                                             │
-│  ---- ----- ------- ------                                           │
-│  PIPQ 0.869 ± 0.201 ops/us                                           │
+│  Type                  Score Error   Unit                            │
+│  --------------------- ----- ------- ------                          │
+│  PIPQ                  0.740 ± 0.156 ops/us                          │
+│  PriorityBlockingQueue 0.925 ± 0.020 ops/us                          │
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue4 ─╮
-│  Type Score Error   Unit                                             │
-│  ---- ----- ------- ------                                           │
-│  PIPQ 0.772 ± 0.162 ops/us                                           │
+│  Type                  Score Error   Unit                            │
+│  --------------------- ----- ------- ------                          │
+│  PIPQ                  0.821 ± 0.134 ops/us                          │
+│  PriorityBlockingQueue 0.910 ± 0.027 ops/us                          │
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue8 ─╮
-│  Type Score Error   Unit                                             │
-│  ---- ----- ------- ------                                           │
-│  PIPQ 0.777 ± 0.160 ops/us                                           │
+│  Type                  Score Error   Unit                            │
+│  --------------------- ----- ------- ------                          │
+│  PIPQ                  0.777 ± 0.142 ops/us                          │
+│  PriorityBlockingQueue 0.893 ± 0.052 ops/us                          │
 ╰──────────────────────────────────────────────────────────────────────╯
 * */

@@ -8,12 +8,11 @@ public class Backoff {
     private static final int YIELD_LIMIT = 10;
     private static final int PARK_NANOS = 1_000_000; //park for 1ms
 
-    private int step;
 
     /*
     * Exponentially spins before yielding and eventually parks briefly and continuing as so
     * */
-    public void snooze() {
+    public int snooze(int step) {
         if (step <= SPIN_LIMIT) {
             int spins = 1 << step;
             for (int i = 0; i < spins; i++) Thread.onSpinWait();
@@ -24,13 +23,10 @@ public class Backoff {
         }
 
         if (step <= YIELD_LIMIT) {
-            step++;
+            return ++step;
         } else {
-            reset();
+            return 0;
         }
     }
 
-    public void reset() {
-        step = 0;
-    }
 }

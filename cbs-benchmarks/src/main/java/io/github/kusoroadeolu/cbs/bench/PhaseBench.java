@@ -243,7 +243,7 @@ public class PhaseBench {
 ╭ io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ─╮
 │  ConsumerProducerThreadCount Type Score    Error     Unit      │
 │  --------------------------- ---- -------- --------- -----     │
-│  8                           PIPQ 3578.000 ± 351.993 us/op     │
+│  8                           PIPQ 3787.337 ± 415.337 us/op     │
 ╰────────────────────────────────────────────────────────────────╯
 * */
 

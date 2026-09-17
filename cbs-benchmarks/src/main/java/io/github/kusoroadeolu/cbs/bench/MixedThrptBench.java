@@ -120,20 +120,20 @@ public class MixedThrptBench {
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
 │  Type Role       Score  Error   Unit                          │
 │  ---- ---------- ------ ------- ------                        │
-│  PIPQ fifty_add  27.309 ± 2.118 ops/us                        │
-│  PIPQ fifty_poll 0.018  ± 0.004 ops/us                        │
-│  PIPQ pollHit    0.018  ± 0.004 ops/us                        │
-│  PIPQ pollMiss   0.000  ± 0.000 ops/us                        │
-│  PIPQ aggregate  27.326 ± 2.118 ops/us                        │
+│  PIPQ fifty_add  27.570 ± 2.563 ops/us                        │
+│  PIPQ fifty_poll 0.020  ± 0.004 ops/us                        │
+│  PIPQ pollHit    0.020  ± 0.004 ops/us                        │
+│  PIPQ pollMiss   0.001  ± 0.002 ops/us                        │
+│  PIPQ aggregate  27.589 ± 2.563 ops/us                        │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
 │  Type Role             Score  Error   Unit                    │
 │  ---- ---------------- ------ ------- ------                  │
-│  PIPQ pollHit          0.004  ± 0.001 ops/us                  │
+│  PIPQ pollHit          0.005  ± 0.001 ops/us                  │
 │  PIPQ pollMiss         0.000  ± 0.000 ops/us                  │
-│  PIPQ seventy_five_add 38.115 ± 2.987 ops/us                  │
-│  PIPQ twenty_five_poll 0.003  ± 0.001 ops/us                  │
-│  PIPQ aggregate        38.118 ± 2.987 ops/us                  │
+│  PIPQ seventy_five_add 40.242 ± 3.049 ops/us                  │
+│  PIPQ twenty_five_poll 0.005  ± 0.001 ops/us                  │
+│  PIPQ aggregate        40.247 ± 3.049 ops/us                  │
 ╰───────────────────────────────────────────────────────────────╯
 */
