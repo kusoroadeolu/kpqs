@@ -27,7 +27,7 @@ public class SingleThreadedOffer {
 
     @Setup
     public void setup() {
-        queue = PQFactory.createRPQ(type, OPS * 2);
+        queue = PQFactory.createPQ(type, OPS * 2);
     }
 
     @TearDown(Level.Invocation)

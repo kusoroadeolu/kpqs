@@ -1,5 +1,6 @@
 package io.github.kusoroadeolu.cbs.hopper;
 
+import io.github.kusoroadeolu.cbs.SpinLock;
 import io.github.kusoroadeolu.cbs.utils.VHUtils;
 
 import java.lang.invoke.MethodHandles;

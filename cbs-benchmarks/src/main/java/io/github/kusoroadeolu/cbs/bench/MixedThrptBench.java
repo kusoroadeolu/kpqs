@@ -29,7 +29,7 @@ public class MixedThrptBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createRPQ(type, 128_000);
+        queue = PQFactory.createPQ(type, 128_000);
     }
 
 
@@ -77,7 +77,7 @@ public class MixedThrptBench {
     }
 
     @Group("ratio_50_50")
-    @GroupThreads(4)
+    @GroupThreads(2)
     @Benchmark
     public void fifty_add(Blackhole bh) {
         bh.consume(queue.offer(nextInt()));
@@ -87,7 +87,11 @@ public class MixedThrptBench {
     @GroupThreads(4)
     @Benchmark
     public void fifty_poll(Blackhole bh, PollCounters counters) {
+     //   long now = System.nanoTime();
         Integer result = queue.poll();
+     //   long after = System.nanoTime();
+    //    System.out.println("Time taken(ns): %s, Now: %s, After: %s".formatted(after - now, now, after));
+
         bh.consume(result);
         if (result == null) {
             counters.pollMiss++;
@@ -112,23 +116,24 @@ public class MixedThrptBench {
     }
 }
 /*
+
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
 │  Type Role       Score  Error   Unit                          │
 │  ---- ---------- ------ ------- ------                        │
-│  PIPQ fifty_add  33.742 ± 3.526 ops/us                        │
-│  PIPQ fifty_poll 0.019  ± 0.005 ops/us                        │
-│  PIPQ pollHit    0.019  ± 0.005 ops/us                        │
+│  PIPQ fifty_add  27.309 ± 2.118 ops/us                        │
+│  PIPQ fifty_poll 0.018  ± 0.004 ops/us                        │
+│  PIPQ pollHit    0.018  ± 0.004 ops/us                        │
 │  PIPQ pollMiss   0.000  ± 0.000 ops/us                        │
-│  PIPQ aggregate  33.760 ± 3.526 ops/us                        │
+│  PIPQ aggregate  27.326 ± 2.118 ops/us                        │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
 │  Type Role             Score  Error   Unit                    │
 │  ---- ---------------- ------ ------- ------                  │
-│  PIPQ pollHit          0.012  ± 0.003 ops/us                  │
+│  PIPQ pollHit          0.004  ± 0.001 ops/us                  │
 │  PIPQ pollMiss         0.000  ± 0.000 ops/us                  │
-│  PIPQ seventy_five_add 38.749 ± 3.162 ops/us                  │
-│  PIPQ twenty_five_poll 0.011  ± 0.003 ops/us                  │
-│  PIPQ aggregate        38.760 ± 3.162 ops/us                  │
+│  PIPQ seventy_five_add 38.115 ± 2.987 ops/us                  │
+│  PIPQ twenty_five_poll 0.003  ± 0.001 ops/us                  │
+│  PIPQ aggregate        38.118 ± 2.987 ops/us                  │
 ╰───────────────────────────────────────────────────────────────╯
 */

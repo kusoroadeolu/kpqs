@@ -2,7 +2,7 @@ package io.github.kusoroadeolu.cbs;
 
 import io.github.kusoroadeolu.cbs.hopper.Hopper;
 import io.github.kusoroadeolu.cbs.hopper.HopperItem;
-import io.github.kusoroadeolu.cbs.hopper.IdleStrategy;
+import io.github.kusoroadeolu.cbs.hopper.Backoff;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import io.github.kusoroadeolu.cbs.utils.PIPQConstants;
 
@@ -32,14 +32,12 @@ class PollFieldPad {
 
 class PollFields extends PollFieldPad {
 
-    final Object lock;
     final Hopper<PollRequest> hopper;
-    final IdleStrategy strategy;
+    final Backoff backoff;
 
     PollFields() {
-       lock = new Object();
-        hopper = new Hopper<>();
-        strategy = IdleStrategy.spin();
+       hopper = new Hopper<>();
+       backoff = new Backoff();
     }
 
     static class PollRequest extends HopperItem<PollRequest> {
@@ -92,7 +90,8 @@ class KLPad extends PollFields{
 * This fully solves the issue of the largest value in the list for a segment getting deleted before smaller values
 * There is doesnt solve one issue where the there's only one value for a segment in the leader list (which would ideally be the tail),
 * a deleter marks it and then removes it, then a bunch of insertions flood in and then we're one unlucky insertion only notices the stale tail
-* when trying to pull it down from the leader list
+* when trying to pull it down from the leader list. To solve this we force insertions/upserts to scan the leader list in the case we notice
+* the tail is marked due to this situation
 *
 * I think the local linked list approach does still make sense though as a probable optimization to find a good starting point for traversing the leader
 * list though that optimization isn't warranted yet
@@ -135,6 +134,16 @@ public class PIPQ<E> extends KLPad implements PQ<E> {
             segments[id] = new Segment<>(id, list ,null);
     }
 
+    public PIPQ(int concurrency, Comparator<? super E> comparator, int initialCapacity) {
+        int segmentSize = MiscUtils.roundToPowerOfTwo(concurrency <= 0 ? NCPU : concurrency);
+        mask = segmentSize - 1;
+        list = new LeaderList<>(comparator);
+        segments = new Segment[segmentSize];
+        for (int id = 0; id < segmentSize; ++id)
+            segments[id] = new Segment<>(id, list ,null, initialCapacity);
+    }
+
+
     @Override
     public boolean offer(E e) {
         Objects.requireNonNull(e);
@@ -172,30 +181,6 @@ public class PIPQ<E> extends KLPad implements PQ<E> {
     }
 
     public E poll() {
-//        var list = this.list;
-//        var segments = this.segments;
-//        int leaderListSize = -1;
-//        int id = -1;
-//        E value;
-//        synchronized (lock) {
-//            var polled = list.poll();
-//            if (polled == null) return null;
-//            leaderListSize = segments[(id = polled.id)].decrementLeaderListSize();
-//            if (leaderListSize <= PIPQConstants.FORCE_UPSERT_THRESHOLD) {
-//                forceUpsert(segments[id]);
-//                return polled.value;
-//            }
-//
-//            value = polled.value;
-//        }
-//
-//
-//        if (leaderListSize <= PIPQConstants.HELP_UPSERT_THRESHOLD) {
-//            tryUpsert(segments[id]);
-//        }
-//
-//        return value;
-
         var h =  hopper;
         var list = this.list;
         var segments = this.segments;
@@ -232,11 +217,8 @@ public class PIPQ<E> extends KLPad implements PQ<E> {
             }
         }
 
-        var strategy = this.strategy;
-        int spins = 0;
-        while (!ours.isApplied()) {
-            spins = strategy.idle(spins);
-        }
+        var backoff = this.backoff;
+        while (!ours.isApplied()) backoff.snooze();
 
         E val = (E) ours.value;
         int size = ours.size;
@@ -267,6 +249,7 @@ public class PIPQ<E> extends KLPad implements PQ<E> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
+        sb.append("List: ").append(list).append("\n");
         for (int i = 0; i < segments.length; ++i) {
             sb.append("Worker %s: %s\n".formatted(i, segments[i]));
         }

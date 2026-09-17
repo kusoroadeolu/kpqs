@@ -132,6 +132,8 @@ public class LeaderList<T> {
         }
     }
 
+
+    //A strict poll method, fails if left#next changed in between poll
     public Node<T> poll() {
         var pred = left;
         var right = this.right;
@@ -140,10 +142,7 @@ public class LeaderList<T> {
 
             if (curr == right) return null;
 
-
-            if (curr.isDummy()) {
-                continue; //If we find a dummy node, restart from left
-            }
+            if (curr.isDummy()) continue; //If we find a dummy node, restart
 
             if (curr.laMarked()) {
                 helpUnlinkAcquire(pred, curr);
@@ -153,17 +152,17 @@ public class LeaderList<T> {
             boolean marking = curr.casMarking();
 
             if (marking) {
-                //hw
-                Node<T> n = casNextDummy(curr); //n is the dummy's next so we should
+                Node<T> n = casNextDummyAcquire(curr); //n is the dummy's next so we should
                 if (pred.casNext(curr, n)) {
                     return curr; //fails if another node was inserted before the left most node
                 }
 
                 curr.svNext(n);
-                curr.setNone(); //first remove the dummy node, then mark our status as none. Doing it in this order is important
+                curr.setNone();
+                //first remove the dummy node, then mark our status as none. Doing it in this order is critical to avoid issues
             }
 
-            //if we failed to mark next
+            //if we failed to mark next, just retry
         }
     }
 
@@ -180,6 +179,23 @@ public class LeaderList<T> {
                  sb.append("Node: " ).append(curr).append(", ");
             }
 
+
+            pred = curr; curr = pred.lpNext();
+        }
+
+        return sb.toString();
+    }
+
+    public String toString() {
+        var l = left;
+        var right = this.right;
+        StringBuilder sb = new StringBuilder();
+        var pred = l;
+        var curr = pred.laNext();
+        for (; ;) {
+            if (curr == right) break;
+
+            sb.append("Node: " ).append(curr).append(", ");
 
             pred = curr; curr = pred.lpNext();
         }

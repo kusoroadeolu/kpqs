@@ -30,7 +30,7 @@ public class InsertScalingBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createRPQ(type, 128_000);
+        queue = PQFactory.createPQ(type, 128_000);
     }
 
     @TearDown(Level.Iteration)

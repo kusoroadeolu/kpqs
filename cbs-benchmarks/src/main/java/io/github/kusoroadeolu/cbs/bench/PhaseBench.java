@@ -55,7 +55,7 @@ public class PhaseBench {
         int producerCount =  workerCount;
         int consumerCount = workerCount;
 
-        queue = PQFactory.createRPQ(type, 128_000);
+        queue = PQFactory.createPQ(type, 128_000);
 
         producers = new Producer[producerCount];
 
@@ -243,7 +243,7 @@ public class PhaseBench {
 ╭ io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ─╮
 │  ConsumerProducerThreadCount Type Score    Error     Unit      │
 │  --------------------------- ---- -------- --------- -----     │
-│  8                           PIPQ 6885.199 ± 411.127 us/op     │
+│  8                           PIPQ 3578.000 ± 351.993 us/op     │
 ╰────────────────────────────────────────────────────────────────╯
 * */
 

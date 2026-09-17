@@ -24,13 +24,13 @@ public class SingleThreadedPoll {
     private volatile boolean dontUnroll = true;
 
 
-    @Param({PQFactory.PIPQ})
+    @Param({PQFactory.PBQ})
     public String type;
 
 
     @Setup
     public void setup() {
-        queue = PQFactory.createRPQ(type, OPS * 2);
+        queue = PQFactory.createPQ(type, 7);
     }
 
     @Setup(Level.Invocation)
@@ -42,7 +42,7 @@ public class SingleThreadedPoll {
 
     @Benchmark
     @OperationsPerInvocation(OPS)
-    public void add() {
+    public void pollPQ() {
         var lq = queue;
         for (int i = 0; i < OPS && dontUnroll; ++i) {
             blackhole(poll(lq));
@@ -64,13 +64,18 @@ public class SingleThreadedPoll {
         static void main() throws RunnerException {
             Options options = new OptionsBuilder()
                     .include(SingleThreadedPoll.class.getSimpleName())
-                    .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-mpmc-pq")
+                    .addProfiler(JavaFlightRecorderProfiler.class, "dir=C:\\jfr-baseline")
                     .build();
             new org.openjdk.jmh.runner.Runner(options).run();
 
         }
     }
 }
+
+/*
+* SingleThreadedPoll.add        PIPQ  avgt   10  227.033 ± 10.051  ns/op
+SingleThreadedPoll.add      PriorityBlockingQueue  avgt   10  156.346 ± 16.698  ns/op
+ * */
 
 
 

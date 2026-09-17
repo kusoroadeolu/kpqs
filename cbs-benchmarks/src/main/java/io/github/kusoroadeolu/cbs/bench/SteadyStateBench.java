@@ -32,7 +32,7 @@ public class SteadyStateBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createRPQ(type, STEADY_STATE_SIZE);
+        queue = PQFactory.createPQ(type, STEADY_STATE_SIZE);
 
         for (int i = 0; i < STEADY_STATE_SIZE; i++) {
             queue.offer(ThreadLocalRandom.current().nextInt(0, RANGE));
@@ -86,10 +86,10 @@ public class SteadyStateBench {
 }
 
 /*
-╭────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ──────────────────────╮
-│  Type Score Error   P00   P50   P90   P95   P99     P99.9   P99.99  P99.999 P99.9999 Max      Unit   │
-│  ---- ----- ------- ----- ----- ----- ----- ------- ------- ------- ------- -------- -------- -----  │
-│  PIPQ 2.944 ± 0.022 0.000 0.400 1.100 2.200 113.280 186.112 242.688 814.080 3510.064 5824.512 us/op  │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ───────────────────────╮
+│  Type Score Error   P00   P50   P90   P95   P99   P99.9    P99.99   P99.999  P99.9999 Max      Unit   │
+│  ---- ----- ------- ----- ----- ----- ----- ----- -------- -------- -------- -------- -------- -----  │
+│  PIPQ 2.874 ± 0.080 0.000 0.100 0.200 0.200 0.400 1028.096 2009.088 2634.637 6206.247 8814.592 us/op  │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 * */

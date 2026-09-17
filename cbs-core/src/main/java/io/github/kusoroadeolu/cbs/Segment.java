@@ -47,10 +47,10 @@ class SegmentFields<E> extends SegmentLPad {
 
     //del capacity should be a pow of 2
     public SegmentFields(int id, LeaderList<E> list, Comparator<? super E> cmp) {
-        this(id, DEFAULT_INITIAL_HEAP_SIZE, list,cmp);
+        this(id, list,cmp, DEFAULT_INITIAL_HEAP_SIZE);
     }
 
-    public SegmentFields(int id, int initialHeapSize, LeaderList<E> list, Comparator<? super E> cmp) {
+    public SegmentFields(int id, LeaderList<E> list, Comparator<? super E> cmp, int initialHeapSize) {
         this.comparator = comparator(cmp);
         lock = new SpinLock();
         this.id = id;
@@ -60,15 +60,16 @@ class SegmentFields<E> extends SegmentLPad {
 
     public boolean add(E e) {
         var list = this.list;
-        var tail = this.largest;
+        var largest = this.largest;
         if (heapSize == 0 || comparator.compare(e, heap[0]) < 0) {
             int leaderListSize = (int) LEADER_LIST_SIZE.getAcquire(this);
             if (leaderListSize == PIPQConstants.MAX_LEADER_LIST_ELEMS) {
-                if (comparator.compare(e, tail.value) < 0) {
+                if (comparator.compare(e, largest.value) < 0) {
                     //Slowest path
                     Node<E> node = new Node<>(id, e);
                     list.add(node);
-                    largest = list.moveFromLeaderList(node, tail, this);
+                    this.largest = list.moveFromLeaderList(node, largest, this);
+                    offerHeap(largest.value);
                 } else {
                     offerHeap(e);
                 }
@@ -264,6 +265,10 @@ public class Segment<E> extends SegmentFields<E> {
         super(id, list ,cmp);
     }
 
+    public Segment(int id, LeaderList<E> list , Comparator<? super E> cmp, int initialCapacity) {
+        super(id, list ,cmp, initialCapacity);
+    }
+
     void clear() {
         acquire();
         try {
@@ -273,6 +278,10 @@ public class Segment<E> extends SegmentFields<E> {
         } finally {
           release();
         }
+    }
+
+    public String toString() {
+        return Arrays.toString(heap);
     }
 
 
