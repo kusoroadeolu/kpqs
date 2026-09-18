@@ -38,19 +38,8 @@ public class MiscUtils {
         return r;
     }
 
-    public static <E> Comparator<? super E> comparator(Comparator<? super E> cmp) {
-        if (cmp == null) return (a, b) -> ((Comparable<? super E>) a).compareTo(b);
-        return cmp;
-    }
 
 
-    public static <E> Comparator<E> defaultCmp() {
-        return (Comparator<E>) Comparator.naturalOrder();
-    }
-
-    public static int offset(long index, long mask) {
-        return (int) (index & mask);
-    }
 
     public static int newLength(int oldLength, int minGrowth, int prefGrowth) {
         // preconditions not checked because of inlining

@@ -51,22 +51,12 @@ public interface SortedList<E> {
         }
 
 
-        public int size() {
-            return size;
-        }
-
 
 
         //Returns added if buffer is not full, otherwise returns the previous "last" element
         void shiftRight(E elem, int index) {
-            E seen;
-            E toAdd = elem;
-
-            for (int i = index; i <= size; i++) {
-                seen = buffer[i];
-                buffer[i] = toAdd;
-                toAdd = seen;
-            }
+            System.arraycopy(buffer, index, buffer, index + 1, size - index);
+            buffer[index] = elem;
         }
 
 

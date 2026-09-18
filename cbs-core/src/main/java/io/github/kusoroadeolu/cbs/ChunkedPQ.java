@@ -5,7 +5,9 @@ import io.github.kusoroadeolu.cbs.SortedList.SortedBuffer;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static io.github.kusoroadeolu.cbs.ChunkedPQ.Chunk.decodeState;
@@ -16,27 +18,22 @@ class IndexLPad {
     long l1, l2, l3, l4, l5, l6, l7, l8;
 }
 
-
+@SuppressWarnings("unchecked")
 class IndexFields<E> extends IndexLPad {
     record IndexEntry<E>(E anchor, ChunkedPQ.Chunk<E> chunk) {}
 
     record Index<E>(IndexEntry<E>[] snapshot, int length) {}
 
-    static final int SAMPLE_INTERVAL = 32; //sample every 48 nodes
-    static final int REBUILD_THRESHOLD = 1000; // insert based splits since last rebuild (maybe we could allow for polls but eh)
-    static final int INITIAL_SIZE = 32;
+    static final int SAMPLE_INTERVAL_MASK = 31; //sample every 32 nodes
+    static final int REBUILD_THRESHOLD = 1000; // insert based splits since last rebuild (maybe we could allow for polls to participate in this but eh)
 
     Index<E> index = new Index<>(null, 0);
     int opsSinceRebuild;
     int indexLock;
-    final List<IndexEntry<E>> entries = new ArrayList<>(INITIAL_SIZE);
+    final IndexedList<IndexEntry<E>> entries = new IndexedList<>();
 
     Index<E> laIndex() {
         return (Index<E>) INDEX.getAcquire(this);
-    }
-
-    Index<E> lpIndex() {
-        return (Index<E>) INDEX.get(this);
     }
 
     void srIndex(Index<E> index) {
@@ -100,6 +97,8 @@ class IndexRPad<E> extends IndexFields<E> {
  * We use the index cache as a railways (similar to skiplists) to good starting nodes for traversing the list. To prevent
  * the issue of staleness every so often, threads performing offer operations, try to rebuild the index cache.
  * */
+
+@SuppressWarnings("unchecked")
 public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
     private static final int CHUNK_CAPACITY = 256;
@@ -218,11 +217,11 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
 
         Bitmap bm;
-        long fStatus = freezeFirstChunk(curr);;
+        long fStatus = freezeFirstChunk(curr);
         if (decodeState(fStatus) == FROZEN) return b.bitmap.isFrozen(index); //linearization point (if true)
         freezeBufferChunk(b);
 
-        if (b.bitmap == null && b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
+        if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
             synchronized (pred) {
                 var next = pred.lpNext(); //ideally we could use the buffer's status or first chunk's status but we'd need to perform some math
                 //even though the math is pretty fast, this should be cheaper
@@ -276,7 +275,6 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
     static <T>void sortArray(Object[] array, Comparator<T> cmp) {
         if (cmp == null) Arrays.sort(array);
         else Arrays.sort((T[]) array, cmp);
@@ -296,8 +294,8 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
     }
 
 
-    long freezeBufferChunk(Chunk<E> chunk) {
-        return chunk.bitwiseOr((long) ChunkState.FREEZING << Chunk.BITS_FOR_STATE);
+    void freezeBufferChunk(Chunk<E> chunk) {
+        chunk.bitwiseOr((long) ChunkState.FREEZING << Chunk.BITS_FOR_STATE);
     }
 
     long freezeFirstChunk(FirstChunk<E> chunk) {
@@ -327,21 +325,24 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
             int state = Chunk.decodeState(status);
             int capacity = curr.capacity;
             if (index < capacity) {
-                if (state < FREEZING) return curr.lvArray(index);
-                if (index < Chunk.decodeFrozenIdx(index)) return curr.lvArray(index);
+                if (state < FREEZING || index < Chunk.decodeFrozenIdx(index)) return curr.lvArray(index);
             }
 
             if (state == FROZEN) continue;
 
             var b = curr.buffer;
+
+            Thread.yield(); //let inserts make progress
+
+
             long fStatus = freezeFirstChunk(curr);
             freezeBufferChunk(b);
 
             Bitmap bm;
 
 
-            if (b.bitmap == null && b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
-                synchronized (pred) {
+            if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
+                synchronized (pred) { //most time is spent here?
                     var next = pred.lpNext(); //ideally we could use the buffer's status or first chunk's status but we'd need to perform some math
                     //even though the math is pretty fast, this should be cheaper
                     if (next != curr) { //first chunk has been replaced
@@ -389,7 +390,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                                 pred.srNext(fs);
                             }
 
-                            return  (E) sorted[0];
+                            return (E) sorted[0];
                         }
                     }
 
@@ -581,8 +582,8 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
             return STATUS.compareAndSet(this, from, to);
         }
 
-        long bitwiseOr(long value) {
-            return (long) STATUS.getAndBitwiseOr(this, value);
+        void bitwiseOr(long value) {
+            STATUS.getAndBitwiseOr(this, value);
         }
 
         void spArray(int idx, T t) {
@@ -660,31 +661,33 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
 
     private void tryRebuildIndex() {
-        if (shouldRebuild()) {
-            var index = laIndex();
-            if (acquireIndexLock()) {
-                if (index != lpIndex()) return;
-                try {
-                    List<IndexEntry<E>> entries = this.entries;
-                    Chunk<E> c = head.laNext();
-                    int i = 0;
-                    int sampled = 0;
-                    while (c != null) {
-                        if (i % SAMPLE_INTERVAL == 0 && Chunk.decodeState(c.loStatus()) < FREEZING) {
-                            entries.add(new IndexEntry<>(c.anchor, c));
-                            ++sampled;
-                        }
-
-                        c = c.laNext();
-                        i++;
+        if (shouldRebuild() && acquireIndexLock()) {
+            //There's a race here (where two or more threads) can notice they should rebuild
+            //one could acquire the lock, one could yield before acquire, the one which acquires
+            //finishes and releases the lock, then the one that yielded/paused could then acquirethe lock and redo the work just done
+            //it's not necessarily harmful, just leads to wasted work
+            try {
+                IndexedList<IndexEntry<E>> entries = this.entries;
+                Chunk<E> c = head.laNext();
+                int i = 0;
+                int sampled = 0;
+                while (c != null) {
+                    boolean masked = i > 0 && (i & SAMPLE_INTERVAL_MASK) == 0;
+                    if (masked && Chunk.decodeState(c.loStatus()) < FREEZING) {
+                        entries.add(new IndexEntry<>(c.anchor, c));
+                        ++sampled;
+                        i = 0;
                     }
 
-                    srIndex(new Index<>(entries.toArray(new IndexEntry[0]), sampled));
-                } finally {
-                    entries.clear();
-                    OPS_SINCE_REBUILD.setRelease(this, 0);
-                    INDEX_LOCK.setRelease(this, 0);
+                    c = c.laNext();
+                    if (!masked) i++;
                 }
+
+                srIndex(new Index<>(entries.toArray(new IndexEntry[sampled], sampled), sampled));
+            } finally {
+                entries.clear();
+                OPS_SINCE_REBUILD.setRelease(this, 0);
+                INDEX_LOCK.setRelease(this, 0);
             }
         }
 
@@ -713,7 +716,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
         if (best == -1) return head;
 
         Chunk<E> candidate = snapshot[best].chunk();
-         if (Chunk.decodeState(candidate.status) >= FREEZING) return head;
+        if (Chunk.decodeState(candidate.status) >= FREEZING) return head;
         return candidate;
     }
 
@@ -724,5 +727,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
     boolean acquireIndexLock() {
         return (int) INDEX_LOCK.getOpaque(this) == 0 && (int) INDEX_LOCK.getAndAddAcquire(this, 1) == 0;
     }
+
+
 
 }
