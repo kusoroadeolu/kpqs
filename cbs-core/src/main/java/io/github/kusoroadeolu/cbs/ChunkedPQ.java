@@ -5,50 +5,90 @@ import io.github.kusoroadeolu.cbs.SortedList.SortedBuffer;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static io.github.kusoroadeolu.cbs.ChunkedPQ.Chunk.decodeState;
 import static io.github.kusoroadeolu.cbs.ChunkedPQ.ChunkState.*;
 
-/*
-* A concurrent priority queue which uses an unrolled linked list as its base structure.
-* The structure consists of three levels:
-* 1. The first chunk which is logically immutable and handles deletions. Deleting threads simply claim values using fetch and add
-* to prevent the issue of CAS storms on the head of the buffer
-* 2. The buffer chunk allows insertions to the first chunk when a key < the anchor of the first chunk,
-* these elements can later be merged into the delete buffer
-* 3. The chunked list handles insertions in general and allows deleters to fill from the top of the list when the delete buffer is empty
-*
-* Each chunk contains
-* an array which handles insertions
-* a long array which allows a thread which inserted into the chunk late to know if its value was consumed
-* a lock protecting the "next" pointer of a chunk
-* a status field which packs three states into it
-* 1. The state of the chunk (NONE, FREEZING, FROZEN)
-* 2. The frozen index of the chunk (used when freezing the first chunk)
-* 3. The current index of the chunk (index to insert into)
-*
-* Each chunk contains an anchor which is the largest value in that chunk. The major invariant
-* for inserting into a chunk is that the chunk's anchor must be greater than or equal that value
-*
-* Each chunk also contains a lock, which protects access to it's next pointer
-*
-* To find a chunk into insert into, a thread simply scans the list
-* If the chunk is the first chunk, since inserts are forbidden here, it writes into the chunk's buffer and tries to
-* trigger a merge with the first chunk, concurrent threads inserting into the first chunk try to help speed up the merge process
-* as well, otherwise, we simply hold the lock and insert, triggering a split that if chunk is full
-*
-* Polls on the other hand simply increment a shared counter using FAA to claim a value from the first chunk
-* If the thread notices that the chunk is freezing it then checks if its claimed index was also frozen as well, if not, it returns
-* Otherwise it tries to merge the first chunk with the buffer, and the next chunk after the first chunk if needed
-*
-* */
-public class ChunkedPQ<E> implements PQ<E> {
 
-    private static final int CHUNK_CAPACITY = 64;
+class IndexLPad {
+    long l1, l2, l3, l4, l5, l6, l7, l8;
+}
+
+
+class IndexFields<E> extends IndexLPad {
+    record IndexEntry<E>(E anchor, ChunkedPQ.Chunk<E> chunk) {}
+
+    record Index<E>(IndexEntry<E>[] snapshot, int length) {}
+
+    static final int SAMPLE_INTERVAL = 48; //sample every 48 nodes
+    static final int REBUILD_THRESHOLD = 1000; // insert based splits since last rebuild (maybe we could allow for polls but eh)
+    static final int INITIAL_SIZE = 32;
+
+    volatile Index<E> index = new Index<>(null, 0);
+    int opsSinceRebuild;
+    int indexLock;
+    final List<IndexEntry<E>> entries = new ArrayList<>(INITIAL_SIZE);
+
+    static final VarHandle INDEX_LOCK;
+    static final VarHandle OPS_SINCE_REBUILD;
+
+    static {
+        MethodHandles.Lookup l = MethodHandles.lookup();
+        try {
+            INDEX_LOCK = l.findVarHandle(IndexFields.class, "indexLock", int.class);
+            OPS_SINCE_REBUILD = l.findVarHandle(IndexFields.class, "opsSinceRebuild", int.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+}
+
+
+class IndexRPad<E> extends IndexFields<E> {
+    long l1, l2, l3, l4, l5, l6, l7, l8;
+}
+
+/*
+ * A concurrent priority queue which uses an unrolled linked list as its base structure.
+ * The structure consists of three levels:
+ * 1. The first chunk which is logically immutable and handles deletions. Deleting threads simply claim values using fetch and add
+ * to prevent the issue of CAS storms on the head of the buffer
+ * 2. The buffer chunk allows insertions to the first chunk when a key < the anchor of the first chunk,
+ * these elements can later be merged into the delete buffer
+ * 3. The chunked list handles insertions in general and allows deleters to fill from the top of the list when the delete buffer is empty
+ *
+ * Each chunk contains
+ * an array which handles insertions
+ * a long array which allows a thread which inserted into the chunk late to know if its value was consumed
+ * a lock protecting the "next" pointer of a chunk
+ * a status field which packs three states into it
+ * 1. The state of the chunk (NONE, FREEZING, FROZEN)
+ * 2. The frozen snapshot of the chunk (used when freezing the first chunk)
+ * 3. The current snapshot of the chunk (snapshot to insert into)
+ *
+ * Each chunk contains an anchor which is the largest value in that chunk. The major invariant
+ * for inserting into a chunk is that the chunk's anchor must be greater than or equal that value
+ *
+ * Each chunk also contains a lock, which protects access to it's next pointer
+ *
+ * To find a chunk into insert into, a thread simply scans the list
+ * If the chunk is the first chunk, since inserts are forbidden here, it writes into the chunk's buffer and tries to
+ * trigger a merge with the first chunk, concurrent threads inserting into the first chunk try to help speed up the merge process
+ * as well, otherwise, we simply hold the lock and insert, triggering a split that if chunk is full
+ *
+ * Polls on the other hand simply increment a shared counter using FAA to claim a value from the first chunk
+ * If the thread notices that the chunk is freezing it then checks if its claimed snapshot was also frozen as well, if not, it returns
+ * Otherwise it tries to merge the first chunk with the buffer, and the next chunk after the first chunk if needed
+ *
+ *
+ * We use the index cache as a railways (similar to skiplists) to good starting nodes for traversing the list. To prevent
+ * the issue of staleness every so often, threads performing offer operations, try to rebuild the index cache.
+ * */
+public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
+
+    private static final int CHUNK_CAPACITY = 256;
     private static final int MIN_FIRST_CHUNK_CAPACITY = 16;
     private final Chunk<E> head;
     private final Comparator<? super E> cmp;
@@ -70,72 +110,76 @@ public class ChunkedPQ<E> implements PQ<E> {
         var head = this.head;
 
         for (;;) {
-           findNode(e, head, cs, cmp);
+            findNode(e, findStartingChunk(e), cs, cmp);
 
-           var pred = cs.pred;
-           var curr = cs.curr;
+            var pred = cs.pred;
+            var curr = cs.curr;
 
-           if (pred == head && curr != null) {
+            if (pred == head && curr != null) {
                 if (!insertIntoFirstChunk(e, pred, (FirstChunk<E>) curr)) continue;
                 return true;
-           }
+            }
 
-           if (Chunk.decodeState(pred.status) >= FREEZING) continue;
+            if (Chunk.decodeState(pred.status) >= FREEZING) continue;
 
-           if (curr == null) {
-               Object[] o = new Object[CHUNK_CAPACITY];
-               o[0] = e;
-               synchronized (pred) {
-                   var predStatus = pred.lpStatus();
-                   if (pred.lpNext() != null || decodeState(predStatus) == FROZEN) continue;
-                   Chunk<E> chunk;
-                   if (pred == head) chunk = new FirstChunk<>(e, o, 1 ,Chunk.encode(DELETE, 0, 0));
-                   else chunk = new Chunk<>(e, o, Chunk.encode(INSERT, 0, 1));
-                   pred.srNext(chunk);
-                   return true;
-               }
-           }
+            if (curr == null) {
+                Object[] o = new Object[CHUNK_CAPACITY];
+                o[0] = e;
+                synchronized (pred) {
+                    var predStatus = pred.lpStatus();
+                    if (pred.lpNext() != null || decodeState(predStatus) == FROZEN) continue;
+                    Chunk<E> chunk;
+                    if (pred == head) chunk = new FirstChunk<>(e, o, 1 ,Chunk.encode(DELETE, 0, 0));
+                    else chunk = new Chunk<>(e, o, Chunk.encode(INSERT, 0, 1));
+                    pred.srNext(chunk);
+                    return true;
+                }
+            }
 
-           if (Chunk.decodeState(curr.loStatus()) >= FREEZING) continue;
+            if (Chunk.decodeState(curr.loStatus()) >= FREEZING) continue;
 
-           synchronized (pred) {
-               var status = curr.lpStatus();
-               if (pred.lpNext() != curr || decodeState(pred.lpStatus()) == FROZEN || decodeState(status) == FROZEN) continue;
-               var index = Chunk.decodeIndex(status);
-               if (index < CHUNK_CAPACITY) {
-                   curr.spArray(index, e);
-                   curr.spStatus(status + 1);
-               } else {
-                   int capacity = CHUNK_CAPACITY + 1;
-                   Object[] sorted = new Object[capacity];
-                   System.arraycopy(curr.array, 0, sorted, 0, CHUNK_CAPACITY);
-                   sorted[CHUNK_CAPACITY] = e;
-                   sortArray(sorted, cmp);
-                   int half = capacity >>> 1;
-                   int rem = capacity - half;
-                   Object[] o1 = new Object[CHUNK_CAPACITY];
-                   Object[] o2 = new Object[CHUNK_CAPACITY];
+            synchronized (pred) {
+                var status = curr.lpStatus();
+                if (pred.lpNext() != curr || decodeState(pred.lpStatus()) == FROZEN || decodeState(status) == FROZEN) continue;
+                var index = Chunk.decodeIndex(status);
+                if (index < CHUNK_CAPACITY) {
+                    curr.spArray(index, e);
+                    curr.spStatus(status + 1);
+                } else {
+                    int capacity = CHUNK_CAPACITY + 1;
+                    Object[] sorted = new Object[capacity];
+                    System.arraycopy(curr.array, 0, sorted, 0, CHUNK_CAPACITY);
+                    sorted[CHUNK_CAPACITY] = e;
+                    sortArray(sorted, cmp);
+                    int half = capacity >>> 1;
+                    int rem = capacity - half;
+                    Object[] o1 = new Object[CHUNK_CAPACITY];
+                    Object[] o2 = new Object[CHUNK_CAPACITY];
 
-                   System.arraycopy(sorted, 0, o1, 0, half);
-                   System.arraycopy(sorted, half, o2, 0, rem);
+                    System.arraycopy(sorted, 0, o1, 0, half);
+                    System.arraycopy(sorted, half, o2, 0, rem);
 
-                   var c1 = new Chunk<>((E)o1[half - 1], o1, Chunk.encode(INSERT, 0, half));
-                   var c2 = new Chunk<>((E)o2[rem - 1], o2, Chunk.encode(INSERT, 0, rem));
+                    var c1 = new Chunk<>((E)o1[half - 1], o1, Chunk.encode(INSERT, 0, half));
+                    var c2 = new Chunk<>((E)o2[rem - 1], o2, Chunk.encode(INSERT, 0, rem));
 
-                   synchronized (curr) {
-                       curr.status = Chunk.encode(FROZEN, 0, CHUNK_CAPACITY);
-                       var next = curr.lpNext();
-                       c1.spNext(c2);
-                       c2.spNext(next);
-                       pred.srNext(c1);
-                   }
+                    synchronized (curr) {
+                        curr.status = Chunk.encode(FROZEN, 0, CHUNK_CAPACITY);
+                        var next = curr.lpNext();
+                        c1.spNext(c2);
+                        c2.spNext(next);
+                        pred.srNext(c1);
 
-               }
+                    }
 
-               return true;
-           }
+                }
+
+                break;
+            }
 
         }
+
+        tryRebuildIndex();
+        return true;
     }
 
 
@@ -147,41 +191,33 @@ public class ChunkedPQ<E> implements PQ<E> {
         int index = Chunk.decodeIndex(status);
         if (index < CHUNK_CAPACITY && state < ChunkState.FREEZING) {
             b.spArray(index, e);
-            VarHandle.fullFence(); //prevent array write from being reordered with bitmap read, also prevents use from using ordered accesses for both array and bit map write/read
             //by providing the needed visibility and ordering
+            VarHandle.fullFence();
             Bitmap bitmap;
             //we can use the bitmap to decide whether to leave or help with freezing
             if ((bitmap = b.lpBitmap()) != null && bitmap.isFrozen(index)) return true; //linearization point (if true)
 
             Thread.yield();  //yield, allow threads to hopefully progress a bit before trying to merge the buffer and first chunk
 
-            if ((bitmap = b.lpBitmap()) != null && bitmap.isFrozen(index)) return true; //recheck incase another thread has handled the bitmap
-
         } else if (state == FROZEN) return false; //need to retry
 
 
 
         Bitmap bm;
-        long fStatus = -1;
+        long fStatus = freezeFirstChunk(curr);;
+        if (decodeState(fStatus) == FROZEN) return b.bitmap.isFrozen(index); //linearization point (if true)
+        freezeBufferChunk(b);
 
-        if (state < FREEZING) {
-            fStatus = freezeFirstChunk(curr);
-            if (decodeState(fStatus) == FROZEN) return b.bitmap.isFrozen(index); //linearization point (if true)
-            freezeBufferChunk(b);
-        }
-
-        if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
+        if (b.bitmap == null && b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
             synchronized (pred) {
                 var next = pred.lpNext(); //ideally we could use the buffer's status or first chunk's status but we'd need to perform some math
                 //even though the math is pretty fast, this should be cheaper
                 if (next != curr) { //first chunk has been replaced
-                    //still need to recheck cause we might not have inserted into the buffer cause our index was out of bounds
-                    return bm.isFrozen(index); //if our index is frozen, linearization point
+                    //still need to recheck cause we might not have inserted into the buffer cause our snapshot was out of bounds
+                    return bm.isFrozen(index); //if our snapshot is frozen, linearization point
                 }
 
-                long s = fStatus == -1 ? curr.status : fStatus;
-
-                int frozenIndex = Chunk.decodeFrozenIdx(s);
+                int frozenIndex = Chunk.decodeFrozenIdx(fStatus);
                 int remElements = curr.capacity - frozenIndex; //rem elements in the first chunk at the time of freezing
                 int total = remElements + bm.size();
 
@@ -203,7 +239,7 @@ public class ChunkedPQ<E> implements PQ<E> {
                     var fs = new FirstChunk<>((E)fArr[half - 1], fArr, half ,Chunk.encode(DELETE, 0, 0));
                     var c = new Chunk<>((E)other[rem - 1], other, Chunk.encode(INSERT, 0, rem));
                     synchronized (curr) {
-                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
                         c.spNext(curr.lpNext());
                         fs.spNext(c);
                         pred.srNext(fs);
@@ -211,16 +247,19 @@ public class ChunkedPQ<E> implements PQ<E> {
                 } else {
                     var fs = new FirstChunk<>(sortedList.peekLast(), sorted, total, Chunk.encode(DELETE, 0, 0));
                     synchronized (curr) {
-                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
                         fs.spNext(curr.lpNext());
                         pred.srNext(fs);
                     }
                 }
 
-                return true; //if our index is frozen, linearization point
-
             }
-        } else return bm.isFrozen(index);
+        } else {
+            return bm.isFrozen(index);
+        }
+
+        tryRebuildIndex();
+        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -244,7 +283,7 @@ public class ChunkedPQ<E> implements PQ<E> {
 
 
     long freezeBufferChunk(Chunk<E> chunk) {
-       return chunk.bitwiseOr((long) ChunkState.FREEZING << Chunk.BITS_FOR_STATE);
+        return chunk.bitwiseOr((long) ChunkState.FREEZING << Chunk.BITS_FOR_STATE);
     }
 
     long freezeFirstChunk(FirstChunk<E> chunk) {
@@ -275,34 +314,28 @@ public class ChunkedPQ<E> implements PQ<E> {
             int capacity = curr.capacity;
             if (index < capacity) {
                 if (state < FREEZING) return curr.lvArray(index);
-
                 if (index < Chunk.decodeFrozenIdx(index)) return curr.lvArray(index);
             }
 
             if (state == FROZEN) continue;
 
             var b = curr.buffer;
-            long fStatus = -1;
-
-            if (state < FREEZING) {
-                fStatus = freezeFirstChunk(curr);
-                freezeBufferChunk(b);
-            }
+            long fStatus = freezeFirstChunk(curr);
+            freezeBufferChunk(b);
 
             Bitmap bm;
 
-            if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
+
+            if (b.bitmap == null && b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
                 synchronized (pred) {
                     var next = pred.lpNext(); //ideally we could use the buffer's status or first chunk's status but we'd need to perform some math
                     //even though the math is pretty fast, this should be cheaper
                     if (next != curr) { //first chunk has been replaced
-                        //still need to recheck cause we might not have inserted into the buffer cause our index was out of bounds
+                        //still need to recheck cause we might not have inserted into the buffer cause our snapshot was out of bounds
                         continue;
                     }
 
-                    long s = fStatus == -1 ? curr.status : fStatus;
-
-                    int frozenIndex = Chunk.decodeFrozenIdx(s);
+                    int frozenIndex = Chunk.decodeFrozenIdx(fStatus);
                     int remElements = curr.capacity - frozenIndex; //rem elements in the first chunk at the time of freezing
                     int total = remElements + bm.size();
 
@@ -334,7 +367,7 @@ public class ChunkedPQ<E> implements PQ<E> {
 
                             var sorted = sortedList.toArray();
                             var fs = new FirstChunk<>(sortedList.peekLast(), sorted, total, Chunk.encode(DELETE, 0, 1));
-                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
 
                             synchronized (n) {
                                 n.status = Chunk.encode(FROZEN, 0, size);
@@ -342,7 +375,7 @@ public class ChunkedPQ<E> implements PQ<E> {
                                 pred.srNext(fs);
                             }
 
-                            return (E) sorted[0];
+                            return  (E) sorted[0];
                         }
                     }
 
@@ -365,25 +398,27 @@ public class ChunkedPQ<E> implements PQ<E> {
                         var fs = new FirstChunk<>((E)fArr[half - 1], fArr, half ,Chunk.encode(DELETE, 0, 1));
                         var c = new Chunk<>((E)other[rem - 1], other, Chunk.encode(INSERT, 0, rem));
                         synchronized (curr) {
-                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
                             c.spNext(curr.lpNext());
                             fs.spNext(c);
                             pred.srNext(fs);
-                            return (E) fArr[0];
+                            return  (E) fArr[0];
                         }
                     } else {
                         var fs = new FirstChunk<>(sortedList.peekLast(), sorted, total, Chunk.encode(DELETE, 0, 1));
                         synchronized (curr) {
-                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(s));
+                            curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
                             fs.spNext(curr.lpNext());
                             pred.srNext(fs);
-                            return (E) sorted[0];
+                            return  (E) sorted[0];
+
                         }
                     }
 
                 }
             }
         }
+
     }
 
     @Override
@@ -509,11 +544,15 @@ public class ChunkedPQ<E> implements PQ<E> {
         }
 
         boolean casBitmap(Bitmap bitmap) {
-           return F_BITMAP.compareAndSet(this, null, bitmap);
+            return F_BITMAP.compareAndSet(this, null, bitmap);
         }
 
         long lpStatus() {
             return (long) STATUS.get(this);
+        }
+
+        long laStatus() {
+            return (long) STATUS.getAcquire(this);
         }
 
         long loStatus() {
@@ -533,11 +572,7 @@ public class ChunkedPQ<E> implements PQ<E> {
         }
 
         long bitwiseOr(long value) {
-           return (long) STATUS.getAndBitwiseOr(this, value);
-        }
-
-        void svArray(int idx, T t) {
-            ARRAY.setVolatile(array, idx, t);
+            return (long) STATUS.getAndBitwiseOr(this, value);
         }
 
         void spArray(int idx, T t) {
@@ -611,5 +646,77 @@ public class ChunkedPQ<E> implements PQ<E> {
             }
         }
 
+        public void srArray(int index, T t) {
+            ARRAY.setRelease(array, index, t);
+        }
+
+        public Bitmap loBitmap() {
+            return (Bitmap) F_BITMAP.getOpaque(this);
+        }
     }
+
+
+
+    private void tryRebuildIndex() {
+        if (shouldRebuild() && acquireIndexLock()) {
+            try {
+                List<IndexEntry<E>> entries = this.entries;
+                Chunk<E> c = head.laNext();
+                int i = 0;
+                int sampled = 0;
+                while (c != null) {
+                    if (i % SAMPLE_INTERVAL == 0 && Chunk.decodeState(c.loStatus()) < FREEZING) {
+                        entries.add(new IndexEntry<>(c.anchor, c));
+                        ++sampled;
+                    }
+
+                    c = c.laNext();
+                    i++;
+                }
+
+                index = new Index<>(entries.toArray(new IndexEntry[0]), sampled);
+            } finally {
+                entries.clear();
+                OPS_SINCE_REBUILD.setRelease(this, 0);
+                INDEX_LOCK.setRelease(this, 0);
+            }
+        }
+
+
+    }
+
+    private Chunk<E> findStartingChunk(E t) {
+        var index = this.index;
+        var head = this.head;
+
+        IndexEntry<E>[] snapshot = index.snapshot();
+        int len = index.length();
+        if (len == 0) return head;
+
+        int lo = 0, hi = len - 1, best = -1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            if (compare(t, snapshot[mid].anchor(), cmp) > 0) {
+                best = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+
+        if (best == -1) return head;
+
+        Chunk<E> candidate = snapshot[best].chunk();
+         if (Chunk.decodeState(candidate.status) >= FREEZING) return head;
+        return candidate;
+    }
+
+    boolean shouldRebuild() {
+        return (int) OPS_SINCE_REBUILD.getOpaque(this) >= REBUILD_THRESHOLD || (int) OPS_SINCE_REBUILD.getAndAddAcquire(this, 1) >= REBUILD_THRESHOLD;
+    }
+
+    boolean acquireIndexLock() {
+        return (int) INDEX_LOCK.getOpaque(this) == 0 && (int) INDEX_LOCK.getAndAddAcquire(this, 1) == 0;
+    }
+
 }

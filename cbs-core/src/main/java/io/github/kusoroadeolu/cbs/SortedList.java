@@ -75,7 +75,7 @@ public interface SortedList<E> {
          * v = cmp (e, i)
          * v > 0 ? e is greater than i
          * v < 0 ? e is less than i
-         * returns the raw long index
+         * returns the raw long snapshot
          * */
         int binarySearch(E elem) {
             int low = 0, high = size;
