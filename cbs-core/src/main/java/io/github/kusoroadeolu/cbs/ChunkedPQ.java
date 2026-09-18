@@ -101,7 +101,7 @@ class IndexRPad<E> extends IndexFields<E> {
 @SuppressWarnings("unchecked")
 public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
-    private static final int CHUNK_CAPACITY = 256;
+    private static final int CHUNK_CAPACITY = 128;
     private static final int MIN_FIRST_CHUNK_CAPACITY = 16;
     private final Chunk<E> head;
     private final Comparator<? super E> cmp;
@@ -136,17 +136,24 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
             if (Chunk.decodeState(pred.status) >= FREEZING) continue;
 
             if (curr == null) {
-                Object[] o = new Object[CHUNK_CAPACITY];
-                o[0] = e;
                 synchronized (pred) {
                     var predStatus = pred.lpStatus();
                     if (pred.lpNext() != null || decodeState(predStatus) == FROZEN) continue;
-                    Chunk<E> chunk;
-                    if (pred == head) chunk = new FirstChunk<>(e, o, 1 ,Chunk.encode(DELETE, 0, 0));
-                    else chunk = new Chunk<>(e, o, Chunk.encode(INSERT, 0, 1));
+                    Object[] o = new Object[CHUNK_CAPACITY];
+                    o[0] = e;
+
+                    if (pred == head) {
+                        var chunk = new FirstChunk<>(e, o, 1 ,Chunk.encode(DELETE, 0, 0));
+                        pred.srNext(chunk);
+                        return true;
+                    }
+
+                    var chunk = new Chunk<>(e, o, Chunk.encode(INSERT, 0, 1));
                     pred.srNext(chunk);
-                    return true;
                 }
+
+                tryRebuildIndex();
+                return true;
             }
 
             if (Chunk.decodeState(curr.loStatus()) >= FREEZING) continue;
@@ -160,15 +167,17 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                     curr.spStatus(status + 1);
                 } else {
                     int capacity = CHUNK_CAPACITY + 1;
-                    Object[] sorted = new Object[capacity];
-                    System.arraycopy(curr.array, 0, sorted, 0, CHUNK_CAPACITY);
-                    sorted[CHUNK_CAPACITY] = e;
-                    sortArray(sorted, cmp);
+                    SortedList<E> list = new SortedBuffer<>(capacity, cmp);
+                    var array = curr.array;
+                    for (int i = 0; i < CHUNK_CAPACITY; ++i) list.add((E) array[i]);
+                    list.add(e);
+
                     int half = capacity >>> 1;
                     int rem = capacity - half;
                     Object[] o1 = new Object[CHUNK_CAPACITY];
                     Object[] o2 = new Object[CHUNK_CAPACITY];
 
+                    var sorted = list.toArray();
                     System.arraycopy(sorted, 0, o1, 0, half);
                     System.arraycopy(sorted, half, o2, 0, rem);
 
@@ -217,11 +226,13 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
 
         Bitmap bm;
-        long fStatus = freezeFirstChunk(curr);
-        if (decodeState(fStatus) == FROZEN) return b.bitmap.isFrozen(index); //linearization point (if true)
+        long frozenChunkStatus = freezeFirstChunk(curr);
+
+        if (decodeState(frozenChunkStatus) == FROZEN) return b.bitmap.isFrozen(index); //linearization point (if true)
+
         freezeBufferChunk(b);
 
-        if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((fStatus = curr.status)) < FROZEN) {
+        if (b.casBitmap(bm = allocateBitmap(b)) || !(bm = b.bitmap).isFrozen(index) && Chunk.decodeState((frozenChunkStatus = curr.status)) < FROZEN) {
             synchronized (pred) {
                 var next = pred.lpNext(); //ideally we could use the buffer's status or first chunk's status but we'd need to perform some math
                 //even though the math is pretty fast, this should be cheaper
@@ -230,7 +241,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                     return bm.isFrozen(index); //if our snapshot is frozen, linearization point
                 }
 
-                int frozenIndex = Chunk.decodeFrozenIdx(fStatus);
+                int frozenIndex = Chunk.decodeFrozenIdx(frozenChunkStatus);
                 int remElements = curr.capacity - frozenIndex; //rem elements in the first chunk at the time of freezing
                 int total = remElements + bm.size();
 
@@ -252,7 +263,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                     var fs = new FirstChunk<>((E)fArr[half - 1], fArr, half ,Chunk.encode(DELETE, 0, 0));
                     var c = new Chunk<>((E)other[rem - 1], other, Chunk.encode(INSERT, 0, rem));
                     synchronized (curr) {
-                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
+                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(frozenChunkStatus));
                         c.spNext(curr.lpNext());
                         fs.spNext(c);
                         pred.srNext(fs);
@@ -260,7 +271,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                 } else {
                     var fs = new FirstChunk<>(sortedList.peekLast(), sorted, total, Chunk.encode(DELETE, 0, 0));
                     synchronized (curr) {
-                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(fStatus));
+                        curr.status = Chunk.encode(FROZEN, frozenIndex, Chunk.decodeIndex(frozenChunkStatus));
                         fs.spNext(curr.lpNext());
                         pred.srNext(fs);
                     }
@@ -332,11 +343,11 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
             var b = curr.buffer;
 
-            Thread.yield(); //let inserts make progress
-
 
             long fStatus = freezeFirstChunk(curr);
             freezeBufferChunk(b);
+
+            if (Chunk.decodeState(fStatus) == FROZEN) continue;
 
             Bitmap bm;
 
@@ -466,13 +477,13 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
     }
 
 
-    static <T> void findNode(T t, Chunk<T> left, Chunks<T> chunks, Comparator<? super T> comparator) {
-        Chunk<T> pred = left;
-        Chunk<T> curr = pred.laNext();
+    static <T> void findNode(T t, Chunk<T> startChunk, Chunks<T> chunks, Comparator<? super T> comparator) {
+        Chunk<T> pred = startChunk;
+        Chunk<T> curr = startChunk.laNext();
 
         while (curr != null && compare(t, curr.anchor, comparator) > 0) {
             pred = curr;
-            curr = curr.laNext();
+            curr = curr.lpNext(); //acquired transitively through index's read (which acq
         }
 
         chunks.pred = pred; chunks.curr = curr;
@@ -679,7 +690,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                         i = 0;
                     }
 
-                    c = c.laNext();
+                    c = c.lpNext(); //acquired transitively through head#laNext
                     if (!masked) i++;
                 }
 

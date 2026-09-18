@@ -25,18 +25,8 @@ public interface SortedList<E> {
 
 
         public void add(E e) {
-            int s = size;
-            if (size == capacity)  throw new RuntimeException();
-
-            if (s == 0) {
-                buffer[0] = e;
-            } else {
-                //only fail if full
-                int index = binarySearch(e);
-                shiftRight(e, index);
-
-            }
-
+            int index = binarySearch(e);
+            shiftRight(e, index);
             ++size;
         }
 
