@@ -51,23 +51,23 @@ public class PollContentionBenchmark {
         }
     }
 
-//    @Benchmark
-//    @Threads(1)
-//    public void pollQueue1(Blackhole bh) {
-//        bh.consume(queue.poll());
-//    }
-//
-//    @Benchmark
-//    @Threads(2)
-//    public void pollQueue2(Blackhole bh) {
-//        bh.consume(queue.poll());
-//    }
-//
-//    @Benchmark
-//    @Threads(4)
-//    public void pollQueue4(Blackhole bh) {
-//        bh.consume(queue.poll());
-//    }
+    @Benchmark
+    @Threads(1)
+    public void pollQueue1(Blackhole bh) {
+        bh.consume(queue.poll());
+    }
+
+    @Benchmark
+    @Threads(2)
+    public void pollQueue2(Blackhole bh) {
+        bh.consume(queue.poll());
+    }
+
+    @Benchmark
+    @Threads(4)
+    public void pollQueue4(Blackhole bh) {
+        bh.consume(queue.poll());
+    }
 
     @Benchmark
     @Threads(8)
@@ -88,5 +88,32 @@ public class PollContentionBenchmark {
 
         }
     }
-
 }
+
+/*
+* ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue1 ─╮
+│  Type      Score Error   Unit                                        │
+│  --------- ----- ------- ------                                      │
+│  ChunkedPQ 9.483 ± 0.499 ops/us                                      │
+╰──────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue2 ─╮
+│  Type      Score Error   Unit                                        │
+│  --------- ----- ------- ------                                      │
+│  ChunkedPQ 8.301 ± 0.713 ops/us                                      │
+╰──────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue4 ─╮
+│  Type      Score Error   Unit                                        │
+│  --------- ----- ------- ------                                      │
+│  ChunkedPQ 8.589 ± 0.457 ops/us                                      │
+╰──────────────────────────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue8 ─╮
+│  Type      Role      Score Error   Unit                              │
+│  --------- --------- ----- ------- ------                            │
+│  ChunkedPQ pollHit   8.484 ± 0.393 ops/us                            │
+│  ChunkedPQ pollMiss  0.000 ± 0.000 ops/us                            │
+│  ChunkedPQ aggregate 8.450 ± 0.412 ops/us                            │
+╰──────────────────────────────────────────────────────────────────────╯
+* */

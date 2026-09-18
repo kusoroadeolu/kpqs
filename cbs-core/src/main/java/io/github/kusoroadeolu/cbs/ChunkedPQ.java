@@ -22,21 +22,35 @@ class IndexFields<E> extends IndexLPad {
 
     record Index<E>(IndexEntry<E>[] snapshot, int length) {}
 
-    static final int SAMPLE_INTERVAL = 48; //sample every 48 nodes
+    static final int SAMPLE_INTERVAL = 32; //sample every 48 nodes
     static final int REBUILD_THRESHOLD = 1000; // insert based splits since last rebuild (maybe we could allow for polls but eh)
     static final int INITIAL_SIZE = 32;
 
-    volatile Index<E> index = new Index<>(null, 0);
+    Index<E> index = new Index<>(null, 0);
     int opsSinceRebuild;
     int indexLock;
     final List<IndexEntry<E>> entries = new ArrayList<>(INITIAL_SIZE);
 
+    Index<E> laIndex() {
+        return (Index<E>) INDEX.getAcquire(this);
+    }
+
+    Index<E> lpIndex() {
+        return (Index<E>) INDEX.get(this);
+    }
+
+    void srIndex(Index<E> index) {
+        INDEX.setRelease(this, index);
+    }
+
     static final VarHandle INDEX_LOCK;
     static final VarHandle OPS_SINCE_REBUILD;
+    static final VarHandle INDEX;
 
     static {
         MethodHandles.Lookup l = MethodHandles.lookup();
         try {
+            INDEX = l.findVarHandle(IndexFields.class, "index", Index.class);
             INDEX_LOCK = l.findVarHandle(IndexFields.class, "indexLock", int.class);
             OPS_SINCE_REBUILD = l.findVarHandle(IndexFields.class, "opsSinceRebuild", int.class);
         } catch (Exception e) {
@@ -551,10 +565,6 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
             return (long) STATUS.get(this);
         }
 
-        long laStatus() {
-            return (long) STATUS.getAcquire(this);
-        }
-
         long loStatus() {
             return (long) STATUS.getOpaque(this);
         }
@@ -645,40 +655,36 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                 throw new RuntimeException(e);
             }
         }
-
-        public void srArray(int index, T t) {
-            ARRAY.setRelease(array, index, t);
-        }
-
-        public Bitmap loBitmap() {
-            return (Bitmap) F_BITMAP.getOpaque(this);
-        }
     }
 
 
 
     private void tryRebuildIndex() {
-        if (shouldRebuild() && acquireIndexLock()) {
-            try {
-                List<IndexEntry<E>> entries = this.entries;
-                Chunk<E> c = head.laNext();
-                int i = 0;
-                int sampled = 0;
-                while (c != null) {
-                    if (i % SAMPLE_INTERVAL == 0 && Chunk.decodeState(c.loStatus()) < FREEZING) {
-                        entries.add(new IndexEntry<>(c.anchor, c));
-                        ++sampled;
+        if (shouldRebuild()) {
+            var index = laIndex();
+            if (acquireIndexLock()) {
+                if (index != lpIndex()) return;
+                try {
+                    List<IndexEntry<E>> entries = this.entries;
+                    Chunk<E> c = head.laNext();
+                    int i = 0;
+                    int sampled = 0;
+                    while (c != null) {
+                        if (i % SAMPLE_INTERVAL == 0 && Chunk.decodeState(c.loStatus()) < FREEZING) {
+                            entries.add(new IndexEntry<>(c.anchor, c));
+                            ++sampled;
+                        }
+
+                        c = c.laNext();
+                        i++;
                     }
 
-                    c = c.laNext();
-                    i++;
+                    srIndex(new Index<>(entries.toArray(new IndexEntry[0]), sampled));
+                } finally {
+                    entries.clear();
+                    OPS_SINCE_REBUILD.setRelease(this, 0);
+                    INDEX_LOCK.setRelease(this, 0);
                 }
-
-                index = new Index<>(entries.toArray(new IndexEntry[0]), sampled);
-            } finally {
-                entries.clear();
-                OPS_SINCE_REBUILD.setRelease(this, 0);
-                INDEX_LOCK.setRelease(this, 0);
             }
         }
 
@@ -686,7 +692,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
     }
 
     private Chunk<E> findStartingChunk(E t) {
-        var index = this.index;
+        var index = laIndex();
         var head = this.head;
 
         IndexEntry<E>[] snapshot = index.snapshot();

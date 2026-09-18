@@ -116,20 +116,20 @@ public class MixedThrptBench {
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
 │  Type      Role       Score  Error   Unit                     │
 │  --------- ---------- ------ ------- ------                   │
-│  ChunkedPQ fifty_add  1.788  ± 0.030 ops/us                   │
-│  ChunkedPQ fifty_poll 15.482 ± 1.558 ops/us                   │
-│  ChunkedPQ pollHit    1.788  ± 0.030 ops/us                   │
-│  ChunkedPQ pollMiss   13.697 ± 1.585 ops/us                   │
-│  ChunkedPQ aggregate  17.270 ± 1.531 ops/us                   │
+│  ChunkedPQ fifty_add  1.177  ± 0.043 ops/us                   │
+│  ChunkedPQ fifty_poll 17.075 ± 2.630 ops/us                   │
+│  ChunkedPQ pollHit    1.177  ± 0.043 ops/us                   │
+│  ChunkedPQ pollMiss   15.901 ± 2.660 ops/us                   │
+│  ChunkedPQ aggregate  18.253 ± 2.602 ops/us                   │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
 │  Type      Role             Score Error   Unit                │
 │  --------- ---------------- ----- ------- ------              │
-│  ChunkedPQ pollHit          2.210 ± 0.051 ops/us              │
-│  ChunkedPQ pollMiss         4.703 ± 0.648 ops/us              │
-│  ChunkedPQ seventy_five_add 2.209 ± 0.051 ops/us              │
-│  ChunkedPQ twenty_five_poll 6.911 ± 0.640 ops/us              │
-│  ChunkedPQ aggregate        9.120 ± 0.635 ops/us              │
+│  ChunkedPQ pollHit          1.492 ± 0.017 ops/us              │
+│  ChunkedPQ pollMiss         2.918 ± 0.420 ops/us              │
+│  ChunkedPQ seventy_five_add 1.492 ± 0.016 ops/us              │
+│  ChunkedPQ twenty_five_poll 4.410 ± 0.425 ops/us              │
+│  ChunkedPQ aggregate        5.902 ± 0.431 ops/us              │
 ╰───────────────────────────────────────────────────────────────╯
 * */
