@@ -266,6 +266,15 @@ public class PIPQ<E> extends KLPad implements PQ<E> {
             segments[i].clear();
         }
 
-        while (list.poll() != null);
+        while (true) {
+            var polled = list.poll();
+
+            if (polled == null) return;
+
+            int id = polled.id;
+            var segment = segments[id];
+            var size = segment.decrementLeaderListSize();
+            if (size <= PIPQConstants.FORCE_UPSERT_THRESHOLD) forceUpsert(segment);
+        }
     }
 }

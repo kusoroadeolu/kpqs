@@ -272,9 +272,9 @@ public class Segment<E> extends SegmentFields<E> {
     void clear() {
         acquire();
         try {
-            largest = null;
             clearHeap();
             resetSize();
+            largest = null;
         } finally {
           release();
         }
