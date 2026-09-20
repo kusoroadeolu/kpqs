@@ -5,5 +5,9 @@ public interface PQ<E> {
 
     E poll();
 
+    default E relaxedPoll() {
+        return poll();
+    }
+
     void unsafeClear();
 }

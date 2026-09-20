@@ -62,8 +62,8 @@ public class SteadyStateBench {
 
 
 
-    boolean doWork(PQ<Integer> PQ, PollCounters counters) {
-        Integer i = PQ.poll();
+    boolean doWork(PQ<Integer> pq, PollCounters counters) {
+        Integer i = pq.poll();
         if (i == null) {
             counters.pollMiss++;
             return false;

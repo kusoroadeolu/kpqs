@@ -164,7 +164,9 @@ public class ConcurrentMound<E> implements PQ<E> {
 
     public E poll() {
         var heap = this.heap;
-        var first = heap.get(0, 1);
+        var index  = 1;
+        var level = 0;
+        var first = heap.get(level, index);
         if (first == null || first.laDeleted()) return null;
         first.lock();
 
@@ -176,15 +178,36 @@ public class ConcurrentMound<E> implements PQ<E> {
 
         E val = first.poll();
         assert val != null;
-        moundify(heap, first);
+        moundify(heap, first, index, level);
         return val;
     }
 
-    public E peek() {
+    public E relaxedPoll() {
         var heap = this.heap;
-        var first = heap.get(0, 1);
-        if (first == null || first.laDeleted()) return null;
-        else return first.laMax();
+        var gen = ThreadLocalRandom.current();
+        while (true) {
+            int depth = Math.min(3, this.depth);
+            int maxIndex = bound(depth);
+            int index = gen.nextInt(1, maxIndex);
+            int level = level(index);
+
+            var node = heap.get(level, index);
+            if (node == null || node.laDeleted()) return null;
+
+            if (node.tryLock()) {
+                if (node.lpDeleted()) {
+                    assert node.peek() == null;
+                    node.unlock();
+                    return null;
+                }
+
+                E val = node.poll();
+                assert val != null;
+                moundify(heap, node, index, level);
+                return val;
+            }
+
+        }
     }
 
 
@@ -200,10 +223,8 @@ public class ConcurrentMound<E> implements PQ<E> {
     }
 
     //only for use in jmh teardown benchmarks
-    void moundify(SegmentedArray<MoundNode<E>> heap, MoundNode<E> start) {
+    void moundify(SegmentedArray<MoundNode<E>> heap, MoundNode<E> start, int parentIndex, int parentLevel) {
         MoundNode<E> parent = start;
-        int parentIndex = 1;
-        int parentLevel = 0;
         var cmp = this.comparator;
 
         for (;;) {
@@ -300,13 +321,15 @@ public class ConcurrentMound<E> implements PQ<E> {
         return Math.powExact(2, depth);
     }
 
+    static int bound(int depth) {
+        return Math.powExact(2, (depth + 1));
+    }
+
     boolean casDepth(int from, int to) {
        return DEPTH.compareAndSet(this, from, to);
     }
 
-    static int bound(int depth) {
-        return Math.powExact(2, (depth + 1));
-    }
+
 
     int binarySearch(SegmentedArray<MoundNode<E>> heap, E elem, int start, int depth) {
         //low = 1 (pos), high = start (pos)
@@ -344,6 +367,10 @@ public class ConcurrentMound<E> implements PQ<E> {
 
         void lock() {
             lock.lock();
+        }
+
+        boolean tryLock() {
+            return lock.tryLock();
         }
 
         void unlock() {
@@ -421,9 +448,9 @@ public class ConcurrentMound<E> implements PQ<E> {
 
         public SegmentedArray() {
             this.array = new AtomicReferenceArray<>(MAX_DEPTH);
-            for (int i = 0; i < INITIALIZED_ARRAY_DEPTH; ++i) {
-                int cap = (1 << i);
-                array.setRelease(i, new ZeroIndexedArray<>(cap));
+            for (int level = 0; level < INITIALIZED_ARRAY_DEPTH; ++level) {
+                int capacity = 1 << level;
+                array.setRelease(level, new ZeroIndexedArray<>(capacity));
             }
         }
 
