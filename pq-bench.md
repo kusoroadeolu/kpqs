@@ -1,6 +1,6 @@
 # Priority Queue Benchmark Results
 
-JMH `SingleShotTime` benchmarks, 100,000 ops per run, `ns/op`. Java 17.
+JMH `SingleShotTime` benchmarks, 100,000 ops per run, `ns/op`.
 
 ## Insert
 
@@ -25,5 +25,3 @@ JMH `SingleShotTime` benchmarks, 100,000 ops per run, `ns/op`. Java 17.
 - **PIPQ** — fastest insert by a wide margin, scales near-linearly with threads (54ns → 14ns, 1→8 threads). Weakest poll of the three, flat across thread counts (~364-405ns), no real scaling either direction. Optimized for inserts, as intended.
 - **ChunkedPQ** — fastest poll by a wide margin, stable across thread counts (~94-107ns), barely affected by contention. Middle-of-the-road insert performance (120-307ns), scales reasonably with threads.
 - **Mounds** — lock-based (mutex), built as a fast baseline before attempting a lock-free/DCAS version. Slowest poll of the three (824-998ns), moderate insert performance (111-238ns) that scales decently with threads.
-- No implementation wins both insert and poll — clear specialization trade-off. PIPQ for insert-heavy workloads, ChunkedPQ for extract-heavy or balanced workloads.
-- Relaxed variants of all three exist but haven't been benchmarked yet.
