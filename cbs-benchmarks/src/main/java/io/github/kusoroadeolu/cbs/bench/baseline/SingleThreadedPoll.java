@@ -73,7 +73,7 @@ public class SingleThreadedPoll {
 }
 
 /*
-* SingleThreadedPoll.add        PIPQ  avgt   10  227.033 ± 10.051  ns/op
+* SingleThreadedPoll.add        SkipPQ  avgt   10  227.033 ± 10.051  ns/op
 SingleThreadedPoll.add      PriorityBlockingQueue  avgt   10  156.346 ± 16.698  ns/op
  * */
 

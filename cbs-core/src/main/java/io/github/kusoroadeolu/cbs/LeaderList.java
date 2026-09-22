@@ -10,7 +10,7 @@ import static io.github.kusoroadeolu.cbs.Node.MARKED;
 /**
  * @author kusoroadeolu
  * */
-//A lock free ordered linked list which supports an api for interacting with PIPQ
+//A lock free ordered linked list which supports an api for interacting with SkipPQ
 public class LeaderList<T> {
     private final Node<T> left;
     private final Node<T> right;

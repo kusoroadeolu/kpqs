@@ -35,7 +35,7 @@ public class PhaseBench {
     private ExecutorService producerEs;
     private ExecutorService consumerEs;
 
-    @Param({PQFactory.PIPQ})
+    @Param({PQFactory.SKIP_PQ})
     private String type;
 
     private CountDownLatch producerStarted;
@@ -243,7 +243,7 @@ public class PhaseBench {
 ╭ io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ─╮
 │  ConsumerProducerThreadCount Type Score    Error     Unit      │
 │  --------------------------- ---- -------- --------- -----     │
-│  8                           PIPQ 3787.337 ± 415.337 us/op     │
+│  8                           SkipPQ 3787.337 ± 415.337 us/op     │
 ╰────────────────────────────────────────────────────────────────╯
 * */
 

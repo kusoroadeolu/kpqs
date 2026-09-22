@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 public class InsertScalingJitterBench {
     private PQ<Integer> queue;
 
-    @Param({PQFactory.PIPQ})
+    @Param({PQFactory.SKIP_PQ})
     private String type;
 
     final static int JITTER_RANGE = 100;
@@ -109,24 +109,24 @@ public class InsertScalingJitterBench {
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
 │  Type Score  Error   Unit                                                           │
 │  ---- ------ ------- ------                                                         │
-│  PIPQ 45.915 ± 7.910 ops/us                                                         │
+│  SkipPQ 45.915 ± 7.910 ops/us                                                         │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
 │  Type Score  Error   Unit                                                          │
 │  ---- ------ ------- ------                                                        │
-│  PIPQ 44.220 ± 2.788 ops/us                                                        │
+│  SkipPQ 44.220 ± 2.788 ops/us                                                        │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
 │  Type Score  Error   Unit                                                         │
 │  ---- ------ ------- ------                                                       │
-│  PIPQ 38.906 ± 1.900 ops/us                                                       │
+│  SkipPQ 38.906 ± 1.900 ops/us                                                       │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
 │  Type Score  Error   Unit                                                         │
 │  ---- ------ ------- ------                                                       │
-│  PIPQ 42.434 ± 3.868 ops/us                                                       │
+│  SkipPQ 42.434 ± 3.868 ops/us                                                       │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 * */

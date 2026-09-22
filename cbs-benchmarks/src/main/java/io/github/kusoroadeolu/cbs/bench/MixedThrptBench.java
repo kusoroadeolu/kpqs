@@ -17,11 +17,11 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 10, time = 1)
-@Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
+@Fork(value = 2, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class MixedThrptBench {
     private PQ<Integer> queue;
 
-    @Param({PQFactory.PIPQ})
+    @Param({PQFactory.SKIP_PQ})
     private String type;
 
     final static int RANGE = 1_000_000;
@@ -120,20 +120,20 @@ public class MixedThrptBench {
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
 │  Type Role       Score  Error   Unit                          │
 │  ---- ---------- ------ ------- ------                        │
-│  PIPQ fifty_add  27.570 ± 2.563 ops/us                        │
-│  PIPQ fifty_poll 0.020  ± 0.004 ops/us                        │
-│  PIPQ pollHit    0.020  ± 0.004 ops/us                        │
-│  PIPQ pollMiss   0.001  ± 0.002 ops/us                        │
-│  PIPQ aggregate  27.589 ± 2.563 ops/us                        │
+│  SkipPQ fifty_add  27.570 ± 2.563 ops/us                        │
+│  SkipPQ fifty_poll 0.020  ± 0.004 ops/us                        │
+│  SkipPQ pollHit    0.020  ± 0.004 ops/us                        │
+│  SkipPQ pollMiss   0.001  ± 0.002 ops/us                        │
+│  SkipPQ aggregate  27.589 ± 2.563 ops/us                        │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
 │  Type Role             Score  Error   Unit                    │
 │  ---- ---------------- ------ ------- ------                  │
-│  PIPQ pollHit          0.005  ± 0.001 ops/us                  │
-│  PIPQ pollMiss         0.000  ± 0.000 ops/us                  │
-│  PIPQ seventy_five_add 40.242 ± 3.049 ops/us                  │
-│  PIPQ twenty_five_poll 0.005  ± 0.001 ops/us                  │
-│  PIPQ aggregate        40.247 ± 3.049 ops/us                  │
+│  SkipPQ pollHit          0.005  ± 0.001 ops/us                  │
+│  SkipPQ pollMiss         0.000  ± 0.000 ops/us                  │
+│  SkipPQ seventy_five_add 40.242 ± 3.049 ops/us                  │
+│  SkipPQ twenty_five_poll 0.005  ± 0.001 ops/us                  │
+│  SkipPQ aggregate        40.247 ± 3.049 ops/us                  │
 ╰───────────────────────────────────────────────────────────────╯
 */

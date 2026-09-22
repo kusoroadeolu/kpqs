@@ -2,7 +2,6 @@ package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
-import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.infra.ThreadParams;
@@ -55,7 +54,7 @@ public class PQBench {
     @State(Scope.Benchmark)
     public static class InsertState {
 
-        @Param({PQFactory.PIPQ})
+        @Param({PQFactory.SKIP_PQ})
         public String impl;
 
         PQ<CDNData> queue;
@@ -67,7 +66,7 @@ public class PQBench {
             queue = newQueue(impl);
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Iteration)
         public void resetEmpty() {
             queue.unsafeClear();
         }
@@ -76,7 +75,7 @@ public class PQBench {
     @State(Scope.Benchmark)
     public static class PollState {
 
-        @Param({PQFactory.PIPQ})
+        @Param({PQFactory.SKIP_PQ})
         public String impl;
 
         PQ<CDNData> queue;
@@ -88,7 +87,7 @@ public class PQBench {
             queue = newQueue(impl);
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Iteration)
         public void refill() {
             queue.unsafeClear();
             for (CDNData d : data) {
@@ -170,3 +169,54 @@ public class PQBench {
         doPoll(st, cs, bh);
     }
 }
+
+/*
+* ╭ io.github.kusoroadeolu.cbs.bench.PQBench.insert1 ─╮
+│  Impl   Score   Error    Unit                     │
+│  ------ ------- -------- -----                    │
+│  SkipPQ 932.375 ± 20.527 ns/op                    │
+╰───────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PQBench.insert2 ─╮
+│  Impl   Score   Error    Unit                     │
+│  ------ ------- -------- -----                    │
+│  SkipPQ 510.889 ± 23.528 ns/op                    │
+╰───────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PQBench.insert4 ─╮
+│  Impl   Score   Error    Unit                     │
+│  ------ ------- -------- -----                    │
+│  SkipPQ 296.381 ± 20.103 ns/op                    │
+╰───────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PQBench.insert8 ─╮
+│  Impl   Score   Error    Unit                     │
+│  ------ ------- -------- -----                    │
+│  SkipPQ 188.380 ± 16.425 ns/op                    │
+╰───────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PQBench.poll1 ─╮
+│  Impl   Score   Error    Unit                   │
+│  ------ ------- -------- -----                  │
+│  SkipPQ 188.243 ± 16.885 ns/op                  │
+╰─────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PQBench.poll2 ─╮
+│  Impl   Score   Error   Unit                    │
+│  ------ ------- ------- -----                   │
+│  SkipPQ 239.482 ± 7.176 ns/op                   │
+╰─────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PQBench.poll4 ─╮
+│  Impl   Score   Error   Unit                    │
+│  ------ ------- ------- -----                   │
+│  SkipPQ 263.547 ± 6.346 ns/op                   │
+╰─────────────────────────────────────────────────╯
+
+╭ io.github.kusoroadeolu.cbs.bench.PQBench.poll8 ─╮
+│  Impl   Score   Error    Unit                   │
+│  ------ ------- -------- -----                  │
+│  SkipPQ 250.524 ± 23.584 ns/op                  │
+╰─────────────────────────────────────────────────╯
+
+* */
