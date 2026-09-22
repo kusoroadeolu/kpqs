@@ -241,9 +241,9 @@ public class PhaseBench {
 
 /*
 ╭ io.github.kusoroadeolu.cbs.bench.PhaseBench.producerBurstCost ─╮
-│  ConsumerProducerThreadCount Type Score    Error     Unit      │
-│  --------------------------- ---- -------- --------- -----     │
-│  8                           SkipPQ 3787.337 ± 415.337 us/op     │
+│  ConsumerProducerThreadCount Type   Score    Error    Unit     │
+│  --------------------------- ------ -------- -------- -----    │
+│  8                           SkipPQ 1764.343 ± 55.728 us/op    │
 ╰────────────────────────────────────────────────────────────────╯
 * */
 

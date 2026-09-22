@@ -89,27 +89,27 @@ public class InsertScalingBench {
 
 /*
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.eight_full_insert ─╮
-│  Type Score  Error   Unit                                                     │
-│  ---- ------ ------- ------                                                   │
-│  SkipPQ 38.302 ± 3.045 ops/us                                                   │
+│  Type   Score Error   Unit                                                    │
+│  ------ ----- ------- ------                                                  │
+│  SkipPQ 3.601 ± 0.078 ops/us                                                  │
 ╰───────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.four_full_insert ─╮
-│  Type Score  Error   Unit                                                    │
-│  ---- ------ ------- ------                                                  │
-│  SkipPQ 33.940 ± 3.021 ops/us                                                  │
+│  Type   Score Error   Unit                                                   │
+│  ------ ----- ------- ------                                                 │
+│  SkipPQ 2.414 ± 0.071 ops/us                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.six_full_insert ─╮
-│  Type Score  Error   Unit                                                   │
-│  ---- ------ ------- ------                                                 │
-│  SkipPQ 37.805 ± 2.560 ops/us                                                 │
+│  Type   Score Error   Unit                                                  │
+│  ------ ----- ------- ------                                                │
+│  SkipPQ 3.038 ± 0.079 ops/us                                                │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.two_full_insert ─╮
-│  Type Score  Error   Unit                                                   │
-│  ---- ------ ------- ------                                                 │
-│  SkipPQ 27.839 ± 2.160 ops/us                                                 │
+│  Type   Score Error   Unit                                                  │
+│  ------ ----- ------- ------                                                │
+│  SkipPQ 1.536 ± 0.097 ops/us                                                │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 **/
 

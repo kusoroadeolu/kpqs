@@ -118,22 +118,22 @@ public class MixedThrptBench {
 /*
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
-│  Type Role       Score  Error   Unit                          │
-│  ---- ---------- ------ ------- ------                        │
-│  SkipPQ fifty_add  27.570 ± 2.563 ops/us                        │
-│  SkipPQ fifty_poll 0.020  ± 0.004 ops/us                        │
-│  SkipPQ pollHit    0.020  ± 0.004 ops/us                        │
-│  SkipPQ pollMiss   0.001  ± 0.002 ops/us                        │
-│  SkipPQ aggregate  27.589 ± 2.563 ops/us                        │
+│  Type   Role       Score  Error   Unit                        │
+│  ------ ---------- ------ ------- ------                      │
+│  SkipPQ fifty_add  2.815  ± 0.061 ops/us                      │
+│  SkipPQ fifty_poll 49.511 ± 5.919 ops/us                      │
+│  SkipPQ pollHit    2.817  ± 0.060 ops/us                      │
+│  SkipPQ pollMiss   46.702 ± 5.899 ops/us                      │
+│  SkipPQ aggregate  52.326 ± 5.939 ops/us                      │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
-│  Type Role             Score  Error   Unit                    │
-│  ---- ---------------- ------ ------- ------                  │
-│  SkipPQ pollHit          0.005  ± 0.001 ops/us                  │
-│  SkipPQ pollMiss         0.000  ± 0.000 ops/us                  │
-│  SkipPQ seventy_five_add 40.242 ± 3.049 ops/us                  │
-│  SkipPQ twenty_five_poll 0.005  ± 0.001 ops/us                  │
-│  SkipPQ aggregate        40.247 ± 3.049 ops/us                  │
+│  Type   Role             Score Error   Unit                   │
+│  ------ ---------------- ----- ------- ------                 │
+│  SkipPQ pollHit          3.047 ± 0.032 ops/us                 │
+│  SkipPQ pollMiss         0.002 ± 0.003 ops/us                 │
+│  SkipPQ seventy_five_add 3.688 ± 0.050 ops/us                 │
+│  SkipPQ twenty_five_poll 3.043 ± 0.032 ops/us                 │
+│  SkipPQ aggregate        6.732 ± 0.064 ops/us                 │
 ╰───────────────────────────────────────────────────────────────╯
 */

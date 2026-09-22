@@ -20,12 +20,11 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 public class PollContentionBenchmark {
 
-
     static final int FILL_SIZE = 10_000_000;
 
     PQ<Integer> queue;
 
-    @Param({PQFactory.SKIP_PQ, PQFactory.PBQ})
+    @Param({PQFactory.SKIP_PQ})
     public String type;
 
     @Setup(Level.Iteration)
@@ -77,30 +76,26 @@ public class PollContentionBenchmark {
 
 /*
 ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue1 ─╮
-│  Type                  Score Error   Unit                            │
-│  --------------------- ----- ------- ------                          │
-│  SkipPQ                  0.828 ± 0.158 ops/us                          │
-│  PriorityBlockingQueue 1.078 ± 0.036 ops/us                          │
+│  Type   Score Error   Unit                                           │
+│  ------ ----- ------- ------                                         │
+│  SkipPQ 4.681 ± 0.944 ops/us                                         │
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue2 ─╮
-│  Type                  Score Error   Unit                            │
-│  --------------------- ----- ------- ------                          │
-│  SkipPQ                  0.740 ± 0.156 ops/us                          │
-│  PriorityBlockingQueue 0.925 ± 0.020 ops/us                          │
+│  Type   Score Error   Unit                                           │
+│  ------ ----- ------- ------                                         │
+│  SkipPQ 3.231 ± 0.369 ops/us                                         │
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue4 ─╮
-│  Type                  Score Error   Unit                            │
-│  --------------------- ----- ------- ------                          │
-│  SkipPQ                  0.821 ± 0.134 ops/us                          │
-│  PriorityBlockingQueue 0.910 ± 0.027 ops/us                          │
+│  Type   Score Error   Unit                                           │
+│  ------ ----- ------- ------                                         │
+│  SkipPQ 2.713 ± 0.259 ops/us                                         │
 ╰──────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.PollContentionBenchmark.pollQueue8 ─╮
-│  Type                  Score Error   Unit                            │
-│  --------------------- ----- ------- ------                          │
-│  SkipPQ                  0.777 ± 0.142 ops/us                          │
-│  PriorityBlockingQueue 0.893 ± 0.052 ops/us                          │
+│  Type   Score Error   Unit                                           │
+│  ------ ----- ------- ------                                         │
+│  SkipPQ 2.636 ± 0.356 ops/us                                         │
 ╰──────────────────────────────────────────────────────────────────────╯
 * */

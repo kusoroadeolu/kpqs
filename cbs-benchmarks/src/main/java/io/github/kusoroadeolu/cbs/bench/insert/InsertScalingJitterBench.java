@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 10, time = 1)
+@Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 2, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 
@@ -107,26 +107,26 @@ public class InsertScalingJitterBench {
 
 /*
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
-│  Type Score  Error   Unit                                                           │
-│  ---- ------ ------- ------                                                         │
-│  SkipPQ 45.915 ± 7.910 ops/us                                                         │
+│  Type   Score Error   Unit                                                          │
+│  ------ ----- ------- ------                                                        │
+│  SkipPQ 4.794 ± 0.696 ops/us                                                        │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
-│  Type Score  Error   Unit                                                          │
-│  ---- ------ ------- ------                                                        │
-│  SkipPQ 44.220 ± 2.788 ops/us                                                        │
+│  Type   Score Error   Unit                                                         │
+│  ------ ----- ------- ------                                                       │
+│  SkipPQ 4.488 ± 0.457 ops/us                                                       │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
-│  Type Score  Error   Unit                                                         │
-│  ---- ------ ------- ------                                                       │
-│  SkipPQ 38.906 ± 1.900 ops/us                                                       │
+│  Type   Score Error   Unit                                                        │
+│  ------ ----- ------- ------                                                      │
+│  SkipPQ 4.533 ± 0.637 ops/us                                                      │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
-│  Type Score  Error   Unit                                                         │
-│  ---- ------ ------- ------                                                       │
-│  SkipPQ 42.434 ± 3.868 ops/us                                                       │
+│  Type   Score Error   Unit                                                        │
+│  ------ ----- ------- ------                                                      │
+│  SkipPQ 3.235 ± 0.135 ops/us                                                      │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 * */

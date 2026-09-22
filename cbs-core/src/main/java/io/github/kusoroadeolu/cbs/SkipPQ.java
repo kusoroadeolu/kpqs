@@ -55,20 +55,33 @@ public class SkipPQ<K> implements PQ<K> {
         return ((h = head) == null) ? null : h.node;
     }
 
-    static <K,V> void unlinkNode(Node<K> b, Node<K> n) {
+    static <K> void unlinkNode(Node<K> b, Node<K> n) {
         if (b != null && n != null) {
             Node<K> f, p;
             for (;;) {
                 if ((f = n.next) != null && f.key == null) {
                     p = f.next;               // already marked
                     break;
-                }
-                else if (NEXT.compareAndSet(n, f, new Node<>(null, true, f))) {
+                } else if (NEXT.compareAndSet(n, f, new Node<>(null, true, f))) {
                     p = f;                    // add marker
                     break;
                 }
             }
+
             NEXT.compareAndSet(b, n, p);
+        }
+    }
+
+    static <K> Node<K> casMarker(Node<K> n) {
+        Node<K> f, p;
+        for (;;) {
+            if ((f = n.next) != null && f.key == null) {
+                p = f.next;               // already marked
+                return p;
+            } else if (NEXT.compareAndSet(n, f, new Node<>(null, true, f))) {
+                p = f;                    // add marker
+                return p;
+            }
         }
     }
 
@@ -182,21 +195,39 @@ public class SkipPQ<K> implements PQ<K> {
         }
     }
 
+
+    //augmented version of the JDK's skip list poll, avoid extra cas's next when we find marked nodes
+    //rather we batch marked nodes and try to cas them out using a single cas
     @Override
     public K poll() {
-        Node<K> b, n; boolean m;
+        Node<K> b, n, p;
         if ((b = baseHead()) != null) {
-            while ((n = b.next) != null) {
-                if ((m = n.marked) || MARKED.compareAndSet(n, false, true)) {
+            for (;;) {
+                p = b.next; //initial predecessor
+                n = p; //n - next
+                if (n == null) break;
+
+                for (;;) {
+                    if (n != null && n.marked) {
+                        n = casMarker(n); //avoid extra cas's on unlink
+                        continue;
+                    }
+
+                    NEXT.compareAndSet(b, p, n);
+                    break;
+                }
+
+                if (n == null) return null;
+
+                if (MARKED.compareAndSet(n, false, true)) {
                     K k = n.key;
                     unlinkNode(b, n);
-                    if (!m) {
-                        tryReduceLevel();
-                        cleanIndices(k, comparator); // clean indices
-                        return k;
-                    }
+                    tryReduceLevel();
+                    cleanIndices(k, comparator); // clean indices
+                    return k;
                 }
             }
+
         }
         return null;
     }
@@ -254,13 +285,12 @@ public class SkipPQ<K> implements PQ<K> {
                         RIGHT.compareAndSet(q, r, r.right);
                         c = 0;
                     }
-                    else if ((c = cpr(cmp, key, k)) > 0)
+                    else if ((c = cpr(cmp, key, k)) > 0) {
                         q = r;
-//                    else if (c == 0)
-//                        break;                      // we allow duplicates, so not stale, we will instead rely on hoist checks
-                }
-                else
+                    }
+                } else {
                     c = -1;
+                }
 
                 if (c <= 0) {
                     if ((d = q.down) != null && skips > 0) {
