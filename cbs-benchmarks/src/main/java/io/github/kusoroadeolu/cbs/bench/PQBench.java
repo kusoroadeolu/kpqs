@@ -2,7 +2,6 @@ package io.github.kusoroadeolu.cbs.bench;
 
 import io.github.kusoroadeolu.cbs.PQ;
 import io.github.kusoroadeolu.cbs.bench.factory.PQFactory;
-import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.infra.ThreadParams;
@@ -67,7 +66,7 @@ public class PQBench {
             queue = newQueue(impl);
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Iteration)
         public void resetEmpty() {
             queue.unsafeClear();
         }
@@ -88,7 +87,7 @@ public class PQBench {
             queue = newQueue(impl);
         }
 
-        @Setup(Level.Invocation)
+        @Setup(Level.Iteration)
         public void refill() {
             queue.unsafeClear();
             for (CDNData d : data) {
