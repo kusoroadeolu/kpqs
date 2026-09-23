@@ -1,5 +1,7 @@
 package io.github.kusoroadeolu.cbs;
 
+import io.github.kusoroadeolu.cbs.utils.MiscUtils;
+
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Comparator;
@@ -7,15 +9,16 @@ import java.util.concurrent.ThreadLocalRandom;
 
 
 /*
-* A skiplist based priority queue which uses the JDK priority queue as a base (this queue allows duplicates)
+* A skip list based priority queue which uses the JDK priority queue as a base (this queue allows duplicates)
 * Some optimizations include:
 * 1. To prevent unnecessary pointer derefs, we traverse up until key > k, we intentionally don't traverse past duplicates cause of dereferences
 *  which isn't an issue if there were no duplicates
-* 2. Another optimization includes one from the linden johnson pq which includes batching physical deletions from the pq
+*
+* 2. This queue borrows an optimization similar though not a 1 to 1 to the Linden-Johnson Priority Queue to batch physical deletions at the head of the queue
 * rather than immediately physical deleting a node once it has been logically deleted
 *
-* TODO an optimization I plan to add to this to help performance under mixed workloads is elimination when
-*  we notice contention for offers/polls near the head of the queue
+* 3 This queue also includes elimination as an optimization (borrowed from The Adaptive Priority Queue with Elimination and Combining) allow offers which fail near the head of the queue to cancel
+* out polls which fail to mark the left most node
 * */
 public class SkipPQ<K> implements PQ<K> {
 
@@ -23,9 +26,22 @@ public class SkipPQ<K> implements PQ<K> {
     /** Lazily initialized topmost index of the skiplist. */
     private transient Index<K> head;
 
+    private static final Object WAITER = new Object();
+    private static final int NCPU = Runtime.getRuntime().availableProcessors();
+    private static final int ARENA_SIZE = MiscUtils.roundToPowerOfTwo((NCPU + 1) >>> 1);
+    private static final int ARENA_MASK = ARENA_SIZE - 1;
+    private static final int LOOKAHEAD = Math.min(4, ARENA_SIZE >>> 1);
+    private static final int TOTAL_SPINS = 2048;
+    private static final int BACKOFF_SPINS = 64;
+    private static final int SPINS_PER_SLOT = TOTAL_SPINS / LOOKAHEAD;
+
+    private final ArenaObject[] arena;
 
     public SkipPQ(Comparator<? super K> comparator) {
         this.comparator = comparator;
+        this.arena = new ArenaObject[ARENA_SIZE];
+
+        for (int i = 0; i < ARENA_SIZE; ++i) arena[i] = new ArenaObject();
     }
 
     static final class Node<K> {
@@ -73,17 +89,7 @@ public class SkipPQ<K> implements PQ<K> {
 
     static <K> void unlinkNode(Node<K> b, Node<K> n) {
         if (b != null && n != null) {
-            Node<K> f, p;
-            for (;;) {
-                if ((f = n.next) != null && f.key == null) {
-                    p = f.next;               // already marked
-                    break;
-                } else if (NEXT.compareAndSet(n, f, new Node<>(null, true, f))) {
-                    p = f;                    // add marker
-                    break;
-                }
-            }
-
+            Node<K> p = casMarker(n);
             NEXT.compareAndSet(b, n, p);
         }
     }
@@ -128,12 +134,19 @@ public class SkipPQ<K> implements PQ<K> {
     public boolean offer(K key) {
         Node<K> node = new Node<>(key, false);
         for (;;) {
-            if (doOffer(key, node)) return true;
+            if (doOffer(key, node, null)) return true;
+        }
+    }
+
+    public boolean offer(K key, ContentionCounter counter) {
+        Node<K> node = new Node<>(key, false);
+        for (;;) {
+            if (doOffer(key, node, counter)) return true;
         }
     }
 
 
-    boolean doOffer(K key, Node<K> node) {
+    boolean doOffer(K key, Node<K> node, ContentionCounter counter) {
         Comparator<? super K> cmp = comparator;
         Index<K> h; Node<K> b;
         VarHandle.acquireFence();
@@ -166,6 +179,7 @@ public class SkipPQ<K> implements PQ<K> {
                 }
             }
         }
+
         if (b != null) {
             Node<K> z = null;              // new node, if inserted
             for (;;) {                       // find insertion point
@@ -183,12 +197,17 @@ public class SkipPQ<K> implements PQ<K> {
                 } else if ((c = cpr(cmp, key, k)) > 0) //since we allow duplicates, walk only up to duplicates of k, we want to avoid extra pointer derefs
                     b = n;
 
-                // avoid derefs due to duplicates
+                // avoid extra derefs due to duplicates
                 if (c <= 0) {
                     node.next = n;
+                    boolean nearHead = b == h.node;
+                    if (counter != null && nearHead) counter.offersNearHead++; //if our predecessor is the left most sentinel node
                     if (NEXT.compareAndSet(b, n, node)) {
                         z = node;
                         break;
+                    } else {
+                        if (nearHead && tryTransfer(ThreadLocalRandom.current().nextInt(), key)) return true;
+                        if (counter != null)  counter.failedOffers++;
                     }
                 }
             }
@@ -229,7 +248,17 @@ public class SkipPQ<K> implements PQ<K> {
     //rather we batch marked nodes and try to cas them out using a single cas
     @Override
     public K poll() {
+        return doPoll(null);
+    }
+
+    public K poll(ContentionCounter counter) {
+        return doPoll(counter);
+    }
+
+
+    K doPoll(ContentionCounter counter) {
         Node<K> b, n;
+        int start = ThreadLocalRandom.current().nextInt();
         if ((b = baseHead()) != null) {
             outer: for (;;) {
                 var p = b.next; //initial predecessor
@@ -250,12 +279,20 @@ public class SkipPQ<K> implements PQ<K> {
                     }
 
                 } else {
+                    if (counter != null) counter.pollCases++;
+
                     if (MARKED.compareAndSet(n, false, true)) {
                         K k = n.key;
                         unlinkNode(b, n);
                         tryReduceLevel();
                         cleanIndices(k, comparator); // clean indices
                         return k;
+                    } else {
+                        K k = tryMatch(start);
+
+                        if (k != null) return k;
+
+                        if (counter != null) counter.failedPollCas++;
                     }
                 }
             }
@@ -263,6 +300,116 @@ public class SkipPQ<K> implements PQ<K> {
 
         return null;
     }
+
+
+
+    boolean tryTransfer(int start, K key) {
+        return scanAndTransferToWaiter(start, key) || awaitTransfer(start, key);
+    }
+
+    K tryMatch(int start) {
+        K k;
+
+        if((k = scanAndMatch(start)) != null) return k;
+
+        return awaitMatch(start);
+    }
+
+
+
+    boolean scanAndTransferToWaiter(int start, K key) {
+        ArenaMarker<K> marker = new ArenaMarker<>(key, true);
+        for (int i = 0; i < ARENA_SIZE; ++i) {
+            int index = (start + i) & ARENA_MASK;
+            var o = arena[index];
+            if (o.laItem() == WAITER && o.casItem(WAITER, marker)) return true;
+        }
+
+        return false;
+    }
+
+    boolean awaitTransfer(int start, K key) {
+        var marker = new ArenaMarker<>(key, false);
+        for (int step = 0, totalSpins = 0; step < ARENA_SIZE && totalSpins < TOTAL_SPINS; ++step) {
+            int index = (start + step) & ARENA_MASK;
+            var o = arena[index];
+            var item = o.laItem();
+            if (item == null) {
+                if (o.casItem(null, marker)) {
+                    for (int spins = 0, backoff = 0;;) {
+                        Object seen = o.loItem();
+                        if (seen != marker) return true; //a poller claimed our value
+                        else if (spins >= SPINS_PER_SLOT && o.casItem(marker, null)) {
+                            totalSpins += spins;
+                            break;
+                        }
+
+                        while (backoff++ < BACKOFF_SPINS) Thread.onSpinWait(); //avoid repeatedly polling shared memory
+
+                        spins += backoff;
+                        backoff = 0;
+                    }
+                }
+            } else if (item == WAITER && o.casItem(WAITER, new ArenaMarker<>(key, true))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    K scanAndMatch(int start) {
+        for (int i = 0; i < ARENA_SIZE; ++i) {
+            int index = (start + i) & ARENA_MASK;
+            var o = arena[index];
+            var item = o.laItem();
+            if (item != null && item != WAITER) {
+                ArenaMarker<K> marker = (ArenaMarker<K>) item;
+                if (!marker.hasWaiter && o.casItem(item, null)) {
+                    return marker.k;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    K awaitMatch(int start) {
+        for (int step = 0, totalSpins = 0; step < ARENA_SIZE && totalSpins < TOTAL_SPINS; ++step) {
+            int index = (start + step) & ARENA_MASK;
+            var o = arena[index];
+            var item = o.laItem();
+            if (item == null) {
+                if (o.casItem(null, WAITER)) {
+                    for (int spins = 0, backoff = 0;;) {
+                        Object seen = o.loItem();
+
+                        if (seen != WAITER) {
+                           var k = ((ArenaMarker<K>) seen).k;
+                           o.srItem(null);
+                           return k;
+                        } else if (spins >= SPINS_PER_SLOT && o.casItem(WAITER, null)) {
+                            totalSpins += spins;
+                            break;
+                        }
+
+                        while (backoff++ < BACKOFF_SPINS) Thread.onSpinWait(); //avoid repeatedly polling shared memory
+
+                        spins += backoff;
+                        backoff = 0;
+                    }
+                }
+            } else if (item != WAITER) {
+                ArenaMarker<K> marker = (ArenaMarker<K>) item;
+                if (!marker.hasWaiter && o.casItem(item, null)) {
+                    return marker.k;
+                }
+            }
+        }
+
+        return null;
+    }
+
 
     @Override
     public void unsafeClear() {
@@ -347,11 +494,45 @@ public class SkipPQ<K> implements PQ<K> {
     }
 
 
+    @SuppressWarnings("unused")
+    static class LArenaObject {
+        long l1, l2, l3, l4, l5, l6 ,l7 ,l8;
+    }
+
+    static class ArenaObjectData extends LArenaObject {
+        Object item;
+
+        boolean casItem(Object from, Object to) {
+            return ITEM.compareAndSet(this, from, to);
+        }
+
+        Object loItem() {
+            return ITEM.getOpaque(this);
+        }
+
+        Object laItem() {
+            return ITEM.getAcquire(this);
+        }
+
+        void srItem(Object o) {
+            ITEM.setRelease(this, o);
+        }
+    }
+
+    @SuppressWarnings("unused")
+    static class ArenaObject extends ArenaObjectData {
+        long l1, l2, l3, l4, l5, l6 ,l7;
+    }
+
+    record ArenaMarker<K>(K k, boolean hasWaiter) {
+    }
+
     // VarHandle mechanics
     private static final VarHandle HEAD;
     private static final VarHandle NEXT;
     private static final VarHandle MARKED;
     private static final VarHandle RIGHT;
+    private static final VarHandle ITEM;
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -360,6 +541,7 @@ public class SkipPQ<K> implements PQ<K> {
             NEXT = l.findVarHandle(Node.class, "next", Node.class);
             MARKED = l.findVarHandle(Node.class, "marked", boolean.class);
             RIGHT = l.findVarHandle(Index.class, "right", Index.class);
+            ITEM = l.findVarHandle(ArenaObjectData.class, "item", Object.class);
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }

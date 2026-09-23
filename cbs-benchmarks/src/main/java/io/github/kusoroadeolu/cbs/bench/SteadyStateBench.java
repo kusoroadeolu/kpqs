@@ -14,13 +14,14 @@ import java.util.concurrent.TimeUnit;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.xorShift;
 
-@BenchmarkMode(Mode.Throughput)
+@BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class SteadyStateBench {
+
     @Param({PQFactory.SKIP_PQ})
     private String type;
 
@@ -86,9 +87,9 @@ public class SteadyStateBench {
 }
 
 /*
-╭────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ───────────────────────╮
-│  Type Score Error   P00   P50   P90   P95   P99   P99.9    P99.99   P99.999  P99.9999 Max      Unit   │
-│  ---- ----- ------- ----- ----- ----- ----- ----- -------- -------- -------- -------- -------- -----  │
-│  SkipPQ 3.999 ± 0.098 0.000 0.100 0.400 1.400 3.100 1871.872 2004.992 2064.732 2995.204 3043.328 us/op  │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ────────────────────────╮
+│  Type   Score Error   P00   P50   P90   P95   P99    P99.9  P99.99  P99.999  P99.9999  Max       Unit   │
+│  ------ ----- ------- ----- ----- ----- ----- ------ ------ ------- -------- --------- --------- -----  │
+│  SkipPQ 2.861 ± 0.067 0.300 1.400 3.700 7.800 29.184 63.552 400.350 6155.885 24046.628 30146.560 us/op  │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 * */

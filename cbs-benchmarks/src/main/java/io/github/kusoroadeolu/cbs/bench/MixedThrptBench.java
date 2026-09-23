@@ -45,26 +45,25 @@ public class MixedThrptBench {
         }
     }
 
+    @Group("ratio_75_25")
+    @GroupThreads(6)
+    @Benchmark
+    public void seventy_five_add(Blackhole bh) {
+        bh.consume(queue.offer(nextInt()));
+    }
 
-//    @Group("ratio_75_25")
-//    @GroupThreads(6)
-//    @Benchmark
-//    public void seventy_five_add(Blackhole bh) {
-//        bh.consume(queue.offer(nextInt()));
-//    }
-//
-//    @Group("ratio_75_25")
-//    @GroupThreads(2)
-//    @Benchmark
-//    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
-//        Integer result = queue.poll();
-//        bh.consume(result);
-//        if (result == null) {
-//            counters.pollMiss++;
-//        } else {
-//            counters.pollHit++;
-//        }
-//    }
+    @Group("ratio_75_25")
+    @GroupThreads(2)
+    @Benchmark
+    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
+        Integer result = queue.poll();
+        bh.consume(result);
+        if (result == null) {
+            counters.pollMiss++;
+        } else {
+            counters.pollHit++;
+        }
+    }
 
     @Group("ratio_50_50")
     @GroupThreads(4)
@@ -101,25 +100,26 @@ public class MixedThrptBench {
         }
     }
 }
-/*
 
-╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
+
+/*
+* ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
 │  Type   Role       Score  Error   Unit                        │
 │  ------ ---------- ------ ------- ------                      │
-│  SkipPQ fifty_add  2.815  ± 0.061 ops/us                      │
-│  SkipPQ fifty_poll 49.511 ± 5.919 ops/us                      │
-│  SkipPQ pollHit    2.817  ± 0.060 ops/us                      │
-│  SkipPQ pollMiss   46.702 ± 5.899 ops/us                      │
-│  SkipPQ aggregate  52.326 ± 5.939 ops/us                      │
+│  SkipPQ fifty_add  3.800  ± 0.070 ops/us                      │
+│  SkipPQ fifty_poll 8.516  ± 1.845 ops/us                      │
+│  SkipPQ pollHit    3.825  ± 0.069 ops/us                      │
+│  SkipPQ pollMiss   4.801  ± 1.894 ops/us                      │
+│  SkipPQ aggregate  12.316 ± 1.836 ops/us                      │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
-│  Type   Role             Score Error   Unit                   │
-│  ------ ---------------- ----- ------- ------                 │
-│  SkipPQ pollHit          3.047 ± 0.032 ops/us                 │
-│  SkipPQ pollMiss         0.002 ± 0.003 ops/us                 │
-│  SkipPQ seventy_five_add 3.688 ± 0.050 ops/us                 │
-│  SkipPQ twenty_five_poll 3.043 ± 0.032 ops/us                 │
-│  SkipPQ aggregate        6.732 ± 0.064 ops/us                 │
+│  Type   Role             Score  Error   Unit                  │
+│  ------ ---------------- ------ ------- ------                │
+│  SkipPQ pollHit          4.044  ± 0.064 ops/us                │
+│  SkipPQ pollMiss         6.213  ± 1.855 ops/us                │
+│  SkipPQ seventy_five_add 4.028  ± 0.063 ops/us                │
+│  SkipPQ twenty_five_poll 10.182 ± 1.820 ops/us                │
+│  SkipPQ aggregate        14.210 ± 1.805 ops/us                │
 ╰───────────────────────────────────────────────────────────────╯
-*/
+* */
