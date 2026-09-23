@@ -6,6 +6,17 @@ import java.util.Comparator;
 import java.util.concurrent.ThreadLocalRandom;
 
 
+/*
+* A skiplist based priority queue which uses the JDK priority queue as a base (this queue allows duplicates)
+* Some optimizations include:
+* 1. To prevent unnecessary pointer derefs, we traverse up until key > k, we intentionally don't traverse past duplicates cause of dereferences
+*  which isn't an issue if there were no duplicates
+* 2. Another optimization includes one from the linden johnson pq which includes batching physical deletions from the pq
+* rather than immediately physical deleting a node once it has been logically deleted
+*
+* TODO an optimization I plan to add to this to help performance under mixed workloads is elimination when
+*  we notice contention for offers/polls near the head of the queue
+* */
 public class SkipPQ<K> implements PQ<K> {
 
     final Comparator<? super K> comparator;
@@ -25,6 +36,11 @@ public class SkipPQ<K> implements PQ<K> {
             this.key = key;
             this.marked = marked;
             this.next = next;
+        }
+
+        Node(K key, boolean marked) {
+            this.key = key;
+            this.marked = marked;
         }
     }
 
@@ -110,89 +126,102 @@ public class SkipPQ<K> implements PQ<K> {
     }
 
     public boolean offer(K key) {
-        Comparator<? super K> cmp = comparator;
+        Node<K> node = new Node<>(key, false);
         for (;;) {
-            Index<K> h; Node<K> b;
-            VarHandle.acquireFence();
-            int levels = 0;                    // number of levels descended
-            if ((h = head) == null) {          // try to initialize
-                Node<K> base = new Node<>(null, false, null);
-                h = new Index<>(base, null, null);
-                b = (HEAD.compareAndSet(this, null, h)) ? base : null;
-            }
-            else {
-                for (Index<K> q = h, r, d;;) { // count while descending
-                    while ((r = q.right) != null) {
-                        Node<K> p; K k;
-                        if ((p = r.node) == null || (k = p.key) == null ||
-                                p.marked)
-                            RIGHT.compareAndSet(q, r, r.right);
-                        else if (cpr(cmp, key, k) > 0)
-                            q = r;
-                        else
-                            break;
-                    }
+            if (doOffer(key, node)) return true;
+        }
+    }
 
-                    if ((d = q.down) != null) {
-                        ++levels;
-                        q = d;
-                    }
-                    else {
-                        b = q.node;
+
+    boolean doOffer(K key, Node<K> node) {
+        Comparator<? super K> cmp = comparator;
+        Index<K> h; Node<K> b;
+        VarHandle.acquireFence();
+        int levels = 0;                    // number of levels descended
+        if ((h = head) == null) {          // try to initialize
+            Node<K> base = new Node<>(null, false, null);
+            h = new Index<>(base, null, null);
+            b = (HEAD.compareAndSet(this, null, h)) ? base : null;
+        }
+        else {
+            for (Index<K> q = h, r, d;;) { // count while descending
+                while ((r = q.right) != null) {
+                    Node<K> p; K k;
+                    if ((p = r.node) == null || (k = p.key) == null ||
+                            p.marked)
+                        RIGHT.compareAndSet(q, r, r.right);
+                    else if (cpr(cmp, key, k) > 0)
+                        q = r;
+                    else
                         break;
-                    }
-                }
-            }
-            if (b != null) {
-                Node<K> z = null;              // new node, if inserted
-                for (;;) {                       // find insertion point
-                    Node<K> n, p; K k; int c;
-                    if ((n = b.next) == null) {
-                        if (b.key == null)       // if empty, type check key now
-                            cpr(cmp, key, key);
-                        c = -1;
-                    }
-                    else if ((k = n.key) == null)
-                        break;                   // can't append; restart
-                    else if (n.marked) {
-                        unlinkNode(b, n);
-                        c = 1;
-                    }
-                    else if ((c = cpr(cmp, key, k)) > 0) //since we allow duplicates, walk only up to duplicates of k, we want to avoid extra pointer derefs
-                        b = n;
-                    if (c <= 0 && // avoid extra derefs due to duplicates
-                            NEXT.compareAndSet(b, n,
-                                    p = new Node<>(key, false, n))) {
-                        z = p;
-                        break;
-                    }
                 }
 
-                if (z != null) {
-                    // add indices with some prob
-                        long rnd = ThreadLocalRandom.current().nextLong();
-                        int skips = levels;
-                        Index<K> x = null;
-                        for (;;) {
-                            x = new Index<>(z, x, null);
-                            if (rnd >= 0L || --skips < 0)
-                                break;
-                            else
-                                rnd <<= 1;
-                        }
-                        if (addIndices(h, skips, x, cmp) && skips < 0 &&
-                                head == h) {         // try to add new level
-                            Index<K> hx = new Index<>(z, x, null);
-                            Index<K> nh = new Index<>(h.node, h, hx);
-                            HEAD.compareAndSet(this, h, nh);
-                        }
-                        if (z.marked)       // deleted while adding indices
-                            cleanIndices(key, cmp); // clean
-
-                    return true;
+                if ((d = q.down) != null) {
+                    ++levels;
+                    q = d;
+                }
+                else {
+                    b = q.node;
+                    break;
                 }
             }
         }
+        if (b != null) {
+            Node<K> z = null;              // new node, if inserted
+            for (;;) {                       // find insertion point
+                Node<K> n; K k; int c;
+                if ((n = b.next) == null) {
+                    if (b.key == null)       // if empty, type check key now
+                        cpr(cmp, key, key);
+                    c = -1;
+                }
+                else if ((k = n.key) == null)
+                    break;                   // can't append; restart
+                else if (n.marked) {
+                    unlinkNode(b, n);
+                    c = 1;
+                } else if ((c = cpr(cmp, key, k)) > 0) //since we allow duplicates, walk only up to duplicates of k, we want to avoid extra pointer derefs
+                    b = n;
+
+                // avoid derefs due to duplicates
+                if (c <= 0) {
+                    node.next = n;
+                    if (NEXT.compareAndSet(b, n, node)) {
+                        z = node;
+                        break;
+                    }
+                }
+            }
+
+            if (z != null) {
+                // add indices with some prob
+                int rnd = ThreadLocalRandom.current().nextInt();
+                int skips = levels;
+                Index<K> x = null;
+
+                for (;;) {
+                    x = new Index<>(z, x, null);
+                    if (rnd >= 0L || --skips < 0)
+                        break;
+                    else
+                        rnd <<= 1;
+                }
+
+                if (addIndices(h, skips, x, cmp) && skips < 0 &&
+                        head == h) {         // try to add new level
+                    Index<K> hx = new Index<>(z, x, null);
+                    Index<K> nh = new Index<>(h.node, h, hx);
+                    HEAD.compareAndSet(this, h, nh);
+                }
+
+                if (z.marked)       // deleted while adding indices
+                    cleanIndices(key, cmp); // clean
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
 
@@ -200,35 +229,38 @@ public class SkipPQ<K> implements PQ<K> {
     //rather we batch marked nodes and try to cas them out using a single cas
     @Override
     public K poll() {
-        Node<K> b, n, p;
+        Node<K> b, n;
         if ((b = baseHead()) != null) {
-            for (;;) {
-                p = b.next; //initial predecessor
+            outer: for (;;) {
+                var p = b.next; //initial predecessor
                 n = p; //n - next
+
                 if (n == null) break;
 
-                for (;;) {
-                    if (n != null && n.marked) {
-                        n = casMarker(n); //avoid extra cas's on unlink
-                        continue;
+                if (n.marked) {
+                    for (;;) {
+                        if (n != null && n.marked) {
+                            n = casMarker(n); //avoid extra cas's to b's next
+                            //instead we batch it up into one cas to b's next
+                            continue;
+                        }
+
+                        NEXT.compareAndSet(b, p, n);
+                        continue outer;
                     }
 
-                    NEXT.compareAndSet(b, p, n);
-                    break;
-                }
-
-                if (n == null) return null;
-
-                if (MARKED.compareAndSet(n, false, true)) {
-                    K k = n.key;
-                    unlinkNode(b, n);
-                    tryReduceLevel();
-                    cleanIndices(k, comparator); // clean indices
-                    return k;
+                } else {
+                    if (MARKED.compareAndSet(n, false, true)) {
+                        K k = n.key;
+                        unlinkNode(b, n);
+                        tryReduceLevel();
+                        cleanIndices(k, comparator); // clean indices
+                        return k;
+                    }
                 }
             }
-
         }
+
         return null;
     }
 
@@ -246,7 +278,7 @@ public class SkipPQ<K> implements PQ<K> {
                     if ((b = h.node) != null) {    // remove nodes
                         Node<K> n;
                         while ((n = b.next) != null) {
-                            if (!(m = n.marked)&&
+                            if (!(m = n.marked) &&
                                     MARKED.compareAndSet(n, false, true)) {
                                 --count;
                             }
@@ -310,6 +342,7 @@ public class SkipPQ<K> implements PQ<K> {
                 }
             }
         }
+
         return false;
     }
 

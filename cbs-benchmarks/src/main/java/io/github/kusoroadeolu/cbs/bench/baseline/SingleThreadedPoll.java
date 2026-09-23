@@ -30,7 +30,7 @@ public class SingleThreadedPoll {
 
     @Setup
     public void setup() {
-        queue = PQFactory.createPQ(type, 7);
+        queue = PQFactory.createPQ(type);
     }
 
     @Setup(Level.Invocation)

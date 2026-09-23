@@ -13,14 +13,8 @@ public final class PQFactory {
     public static final String SKIP_PQ = "SkipPQ";
     private static final int SEGMENT_COUNT = Runtime.getRuntime().availableProcessors();
 
-    public static <E> PQ<E> createPQ(String s, int segmentCount, int initialCapacity) {
-        if (PBQ.equals(s)) return new PBQ<>(initialCapacity);
-        else if (SKIP_PQ.equals(s)) return new SkipPQ<>((Comparator<? super E>) Comparator.naturalOrder());
+    public static <E> PQ<E> createPQ(String s) {
+        if (SKIP_PQ.equals(s)) return new SkipPQ<>((Comparator<? super E>) Comparator.naturalOrder());
         else throw new IllegalArgumentException("??");
     }
-
-    public static <E> PQ<E> createPQ(String s, int initialCapacity) {
-        return createPQ(s, SEGMENT_COUNT, initialCapacity);
-    }
-
 }

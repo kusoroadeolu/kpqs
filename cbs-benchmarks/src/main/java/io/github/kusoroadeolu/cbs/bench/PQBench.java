@@ -35,7 +35,7 @@ public class PQBench {
     }
 
     static PQ<CDNData> newQueue(String impl) {
-        return PQFactory.createPQ(impl, 132_000);
+        return PQFactory.createPQ(impl);
     }
 
     @State(Scope.Thread)

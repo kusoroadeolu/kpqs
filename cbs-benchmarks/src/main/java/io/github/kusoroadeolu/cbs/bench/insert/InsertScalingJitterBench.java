@@ -32,7 +32,7 @@ public class InsertScalingJitterBench {
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createPQ(type, 128_000);
+        queue = PQFactory.createPQ(type);
     }
 
 

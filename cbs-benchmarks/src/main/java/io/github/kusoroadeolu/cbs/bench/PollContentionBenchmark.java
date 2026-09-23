@@ -29,7 +29,7 @@ public class PollContentionBenchmark {
 
     @Setup(Level.Iteration)
     public void fill() {
-        queue = PQFactory.createPQ(type,  Runtime.getRuntime().availableProcessors(), 500_000);
+        queue = PQFactory.createPQ(type);
 
         for (int i = 0; i < FILL_SIZE; i++) {
             int v = ThreadLocalRandom.current().nextInt();

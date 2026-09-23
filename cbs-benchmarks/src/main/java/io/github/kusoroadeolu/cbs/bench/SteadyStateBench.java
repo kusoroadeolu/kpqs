@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.xorShift;
 
-@BenchmarkMode(Mode.SampleTime)
+@BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 5, time = 1)
@@ -27,12 +27,12 @@ public class SteadyStateBench {
     private PQ<Integer> queue;
 
     final static int STEADY_STATE_SIZE = 132_000;
-    final static int RANGE = 1_000_000;
+    final static int RANGE = 10;
 
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createPQ(type, STEADY_STATE_SIZE);
+        queue = PQFactory.createPQ(type);
 
         for (int i = 0; i < STEADY_STATE_SIZE; i++) {
             queue.offer(ThreadLocalRandom.current().nextInt(0, RANGE));
@@ -61,14 +61,14 @@ public class SteadyStateBench {
 
 
 
-    boolean doWork(PQ<Integer> PQ, PollCounters counters) {
-        Integer i = PQ.poll();
+    boolean doWork(PQ<Integer> pq, PollCounters counters) {
+        Integer i = pq.poll();
         if (i == null) {
             counters.pollMiss++;
             return false;
         } else {
             counters.pollHit++;
-            return queue.offer(xorShift(i));
+            return queue.offer(ThreadLocalRandom.current().nextInt(0, RANGE));
         }
     }
 

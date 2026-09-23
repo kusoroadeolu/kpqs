@@ -1,6 +1,5 @@
-package io.github.kusoroadeolu.cbs.hopper;
+package io.github.kusoroadeolu.cbs;
 
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
 
 public class Backoff {

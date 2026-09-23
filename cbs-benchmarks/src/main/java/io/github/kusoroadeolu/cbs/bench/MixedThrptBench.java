@@ -24,23 +24,13 @@ public class MixedThrptBench {
     @Param({PQFactory.SKIP_PQ})
     private String type;
 
-    final static int RANGE = 1_000_000;
+    final static int RANGE = 10;
 
 
     @Setup(Level.Trial)
     public void setup() {
-        queue = PQFactory.createPQ(type, 128_000);
+        queue = PQFactory.createPQ(type);
     }
-
-
-    @TearDown(Level.Iteration)
-    public void emptyQ() {
-        synchronized (queue)
-        {
-            queue.unsafeClear();
-        }
-    }
-
 
     @AuxCounters(AuxCounters.Type.OPERATIONS)
     @State(Scope.Thread)
@@ -56,28 +46,28 @@ public class MixedThrptBench {
     }
 
 
-    @Group("ratio_75_25")
-    @GroupThreads(6)
-    @Benchmark
-    public void seventy_five_add(Blackhole bh) {
-        bh.consume(queue.offer(nextInt()));
-    }
-
-    @Group("ratio_75_25")
-    @GroupThreads(2)
-    @Benchmark
-    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
-        Integer result = queue.poll();
-        bh.consume(result);
-        if (result == null) {
-            counters.pollMiss++;
-        } else {
-            counters.pollHit++;
-        }
-    }
+//    @Group("ratio_75_25")
+//    @GroupThreads(6)
+//    @Benchmark
+//    public void seventy_five_add(Blackhole bh) {
+//        bh.consume(queue.offer(nextInt()));
+//    }
+//
+//    @Group("ratio_75_25")
+//    @GroupThreads(2)
+//    @Benchmark
+//    public void twenty_five_poll(Blackhole bh, PollCounters counters) {
+//        Integer result = queue.poll();
+//        bh.consume(result);
+//        if (result == null) {
+//            counters.pollMiss++;
+//        } else {
+//            counters.pollHit++;
+//        }
+//    }
 
     @Group("ratio_50_50")
-    @GroupThreads(2)
+    @GroupThreads(4)
     @Benchmark
     public void fifty_add(Blackhole bh) {
         bh.consume(queue.offer(nextInt()));
@@ -87,11 +77,7 @@ public class MixedThrptBench {
     @GroupThreads(4)
     @Benchmark
     public void fifty_poll(Blackhole bh, PollCounters counters) {
-     //   long now = System.nanoTime();
         Integer result = queue.poll();
-     //   long after = System.nanoTime();
-    //    System.out.println("Time taken(ns): %s, Now: %s, After: %s".formatted(after - now, now, after));
-
         bh.consume(result);
         if (result == null) {
             counters.pollMiss++;

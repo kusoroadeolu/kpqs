@@ -55,7 +55,7 @@ public class PhaseBench {
         int producerCount =  workerCount;
         int consumerCount = workerCount;
 
-        queue = PQFactory.createPQ(type, 128_000);
+        queue = PQFactory.createPQ(type);
 
         producers = new Producer[producerCount];
 
