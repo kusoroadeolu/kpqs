@@ -77,7 +77,7 @@ public class MixedThrptBench {
     }
 
     @Group("ratio_50_50")
-    @GroupThreads(2)
+    @GroupThreads(4)
     @Benchmark
     public void fifty_add(Blackhole bh) {
         bh.consume(queue.offer(nextInt()));

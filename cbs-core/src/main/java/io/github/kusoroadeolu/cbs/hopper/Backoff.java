@@ -1,12 +1,14 @@
 package io.github.kusoroadeolu.cbs.hopper;
 
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
 
 public class Backoff {
+
     private static final int SPIN_LIMIT = 6;
     private static final int YIELD_LIMIT = 10;
-    private static final int PARK_NANOS = 1_000_000; //park for 1ms
+    private static final int MAX_PARK_NANOS = 1_000_000; //park for 1ms
+    private static final int[] PARK_NANOS = {1_000, 10_000, 100_000, MAX_PARK_NANOS};
+
 
 
     /*
@@ -19,14 +21,12 @@ public class Backoff {
         } else if (step <= YIELD_LIMIT){
             Thread.yield();
         } else {
-            LockSupport.parkNanos(PARK_NANOS);
+            int idx = step - YIELD_LIMIT - 1;
+            LockSupport.parkNanos(PARK_NANOS[idx]);
+            if (idx == 3) return 0;
         }
 
-        if (step <= YIELD_LIMIT) {
-            return ++step;
-        } else {
-            return 0;
-        }
+        return ++step;
     }
 
 }

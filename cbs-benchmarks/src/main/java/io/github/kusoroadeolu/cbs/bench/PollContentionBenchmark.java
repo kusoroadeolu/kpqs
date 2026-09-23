@@ -43,23 +43,23 @@ public class PollContentionBenchmark {
         }
     }
 
-    @Benchmark
-    @Threads(1)
-    public void pollQueue1(Blackhole bh) {
-        bh.consume(queue.poll());
-    }
-
-    @Benchmark
-    @Threads(2)
-    public void pollQueue2(Blackhole bh) {
-        bh.consume(queue.poll());
-    }
-
-    @Benchmark
-    @Threads(4)
-    public void pollQueue4(Blackhole bh) {
-        bh.consume(queue.poll());
-    }
+//    @Benchmark
+//    @Threads(1)
+//    public void pollQueue1(Blackhole bh) {
+//        bh.consume(queue.poll());
+//    }
+//
+//    @Benchmark
+//    @Threads(2)
+//    public void pollQueue2(Blackhole bh) {
+//        bh.consume(queue.poll());
+//    }
+//
+//    @Benchmark
+//    @Threads(4)
+//    public void pollQueue4(Blackhole bh) {
+//        bh.consume(queue.poll());
+//    }
 
     @Benchmark
     @Threads(8)
