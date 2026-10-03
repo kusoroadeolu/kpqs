@@ -190,7 +190,6 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                         c1.spNext(c2);
                         c2.spNext(next);
                         pred.srNext(c1);
-
                     }
 
                 }
@@ -219,7 +218,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
             //we can use the bitmap to decide whether to leave or help with freezing
             if ((bitmap = b.lpBitmap()) != null && bitmap.isFrozen(index)) return true; //linearization point (if true)
 
-            Thread.yield();  //yield, allow threads to hopefully progress a bit before trying to merge the buffer and first chunk
+          // Thread.yield();  //yield, allow threads to hopefully progress a bit before trying to merge the buffer and first chunk
 
         } else if (state == FROZEN) return false; //need to retry
 
