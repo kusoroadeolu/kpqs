@@ -36,6 +36,23 @@ public class MiscUtils {
         return r;
     }
 
+    /*
+    jump-hash
+    see https://dgryski.medium.com/consistent-hashing-algorithmic-tradeoffs-ef6b8e2fcae8 for explanation
+    */
+    public static int jumpIndex(long id, long numCells) {
+        long b = -1;
+        long j = 0;
+
+        while (j < numCells) {
+            b = j;
+            id = id * 2862933555777941757L + 1;
+            j = (long) ((b + 1) * ((double) (1L << 31) / (double) ((id >>> 33) + 1)));
+        }
+
+        return (int) b;
+    }
+
 
 
     public static int offset(long index, long mask) {

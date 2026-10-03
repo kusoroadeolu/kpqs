@@ -3,9 +3,9 @@ package io.github.kusoroadeolu.cbs;
 import io.github.kusoroadeolu.cbs.utils.MiscUtils;
 
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 
 import static io.github.kusoroadeolu.cbs.utils.MiscUtils.offset;
+import static io.github.kusoroadeolu.cbs.utils.MiscUtils.xorShift;
 
 
 class PollFieldPad {
@@ -62,28 +62,35 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
 
     private static final int NCPU = Runtime.getRuntime().availableProcessors();
     private static final int MAX_PUBLICATIONS_PER_SEGMENT = 128; //max number of publications a segment can make in the queue (size of the sorted buffer which is the size of a cache line)
-    private static final int PROBE_DISTANCE = NCPU >>> 1; //max length to probe for a worker to acquire before retrying
+    private static final int PROBE_DISTANCE = MiscUtils.roundToPowerOfTwo(NCPU - 1) >>> 1; //max length to probe for a worker to acquire before retrying
 
 
     private final Segment<E>[] segments;
     private final MpscLeaderQueue queue;
     private final int mask;
-    private final ThreadLocal<ProbeState> state = ThreadLocal.withInitial(ProbeState::new);
+    private final ThreadLocal<ProbeState> state;
 
     static class ProbeState {
-        final ThreadLocalRandom tlr = ThreadLocalRandom.current();
-        int rand = tlr.nextInt(); //uses the murmur hash underneath
+        int index; //uses the murmur hash underneath
+        long id = Thread.currentThread().threadId();
+        final long numCells;
 
-        int rand() {
-            return rand;
+        public ProbeState(long numCells) {
+            this.numCells = numCells;
+            this.index = MiscUtils.jumpIndex(id, numCells);
         }
 
-        void remember(int rand) {
-            this.rand = rand;
+        int index() {
+            return index;
         }
 
-        void newRand() {
-            rand = tlr.nextInt();
+        void remember(int index) {
+            this.index = index;
+        }
+
+        void newIndex() {
+            id = xorShift(id);
+            index = MiscUtils.jumpIndex(id, numCells);
         }
     }
 
@@ -104,20 +111,8 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
         queue = new MpscLeaderQueue(segmentSize * MAX_PUBLICATIONS_PER_SEGMENT);
         for (int id = 0; id < segmentSize; ++id)
             segments[id] = new Segment<>(bufferSize <= 0 ? MAX_PUBLICATIONS_PER_SEGMENT : MiscUtils.roundToPowerOfTwo(bufferSize), queue, id, initialHeapSize ,null);
+        state = ThreadLocal.withInitial(() -> new ProbeState(segmentSize));
     }
-
-//    public void logSegmentSizes() {
-//        int min = Integer.MAX_VALUE, max = 0;
-//        long sum = 0;
-//        for (var s : segments) {
-//            int sz = s.size();
-//            min = Math.min(min, sz);
-//            max = Math.max(max, sz);
-//            sum += sz;
-//        }
-//        double avg = sum / (double) segments.length;
-//        System.out.printf("min=%d max=%d avg=%.1f (skew=%.1fx)%n", min, max, avg, max / Math.max(1.0, avg));
-//    }
 
     @Override
     public boolean offer(E e) {
@@ -139,19 +134,18 @@ public class KQueue<E> extends KLPad implements RPQ<E> {
     }
 
     Segment<E> tryProbe(int mask , Segment<E>[] segments, ProbeState state) {
-        int start = state.rand();
+        int start = state.index();
 
         for (int steps = 0; steps < PROBE_DISTANCE; ++steps) {
-            int index = start + steps;
-            int offset =  offset(index, mask);
-            var segment = segments[offset];
+            int index = offset(start + steps, mask);
+            var segment = segments[index];
             if (segment.tryAcquire()) {
                 state.remember(index);
                 return segment; //retry on fail, don't want to wait on a locked segment
             }
         }
 
-        state.newRand();
+        state.newIndex();
         return null;
     }
 

@@ -27,3 +27,10 @@ A strictly ordered concurrent priority queue shaped like a classic binary heap, 
 A strict sharded design (same segment/probing skeleton as KQueue and MultiQueue) built around a single shared lock free sorted linked list, the "leader list". Each segment publishes a bounded window of its smallest elements into this shared list and keeps the rest in a local heap, refilling the list as it drains. The leader list itself uses a custom 3 phase deletion protocol (NONE, MARKING, MARKED plus a dummy node splice) intended to ensure a deleter always gets the smallest left most node. 
 Poll requests are combined through a flat combining structure (`Hopper`) so one thread does the leader list traversal work for a batch of concurrent pollers.
 
+### SkipPQ
+A strictly ordered, lock free priority queue built on a skip list adapted from the JDK's `ConcurrentSkipListMap` internals, modified to allow duplicate keys. Polling logically deletes the left most node with a CAS on its `marked` flag, then physically unlinks it and cleans up its indices. Two optimizations sit on top of that:
+
+- **Batched unlinking:** when a poller runs into a run of already marked nodes at the head, it walks past them using marker nodes and removes the whole run with a single CAS on the head's `next`, instead of one CAS per node (in the spirit of the Linden-Jonsson queue).
+- **Elimination:** an offer that loses its CAS right next to the head sentinel, or a poll that loses the race to mark the left most node, falls back to a padded elimination arena. Offers try to hand their element directly to a waiting poller, and pollers try to grab a pending offer or park as a waiter for a short spin. Matched pairs skip the skip list entirely, which cuts contention at the head.
+
+Duplicates are handled by only traversing up to the first node with an equal key rather than past all of them, to avoid extra pointer derefs. A `ContentionCounter` can optionally be passed to `offer`/`poll` to track offers near the head, failed offers, poll attempts, and failed marking CASes.

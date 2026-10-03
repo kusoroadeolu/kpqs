@@ -12,8 +12,8 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 10, time = 1)
-@Measurement(iterations = 15, time = 1)
+@Warmup(iterations = 5, time = 1)
+@Measurement(iterations = 10, time = 1)
 @Fork(value = 3, jvmArgs = {JvmArgs.I_HEAP_ARG, JvmArgs.M_HEAP_ARG, JvmArgs.GC_TYPE_ARG})
 public class InsertScalingBench {
     private RPQ<Integer> queue;
@@ -77,25 +77,25 @@ public class InsertScalingBench {
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.eight_full_insert ─╮
 │  Type   Score  Error   Unit                                                   │
 │  ------ ------ ------- ------                                                 │
-│  KQueue 34.516 ± 2.167 ops/us                                                 │
+│  KQueue 35.687 ± 2.620 ops/us                                                 │
 ╰───────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.four_full_insert ─╮
 │  Type   Score  Error   Unit                                                  │
 │  ------ ------ ------- ------                                                │
-│  KQueue 28.376 ± 1.436 ops/us                                                │
+│  KQueue 31.981 ± 2.750 ops/us                                                │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.six_full_insert ─╮
 │  Type   Score  Error   Unit                                                 │
 │  ------ ------ ------- ------                                               │
-│  KQueue 32.076 ± 1.764 ops/us                                               │
+│  KQueue 35.115 ± 2.927 ops/us                                               │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingBench.two_full_insert ─╮
 │  Type   Score  Error   Unit                                                 │
 │  ------ ------ ------- ------                                               │
-│  KQueue 21.826 ± 1.052 ops/us                                               │
+│  KQueue 25.247 ± 2.025 ops/us                                               │
 ╰─────────────────────────────────────────────────────────────────────────────╯
 **/
 
