@@ -19,6 +19,7 @@ public class LeaderList<T> {
     public LeaderList(Comparator<? super T> comparator) {
         this.left = new SentinelNode<>();
         this.right = new SentinelNode<>();
+        VarHandle.acquireFence();
         left.next = right;
         VarHandle.releaseFence();
         this.comparator = (a, b) -> {

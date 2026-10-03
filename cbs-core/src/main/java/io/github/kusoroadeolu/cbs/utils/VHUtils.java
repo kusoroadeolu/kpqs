@@ -11,12 +11,4 @@ public final class VHUtils {
             throw new RuntimeException(e);
         }
     }
-
-    public static VarHandle arrayVarHandle() {
-        return MethodHandles.arrayElementVarHandle(Object[].class);
-    }
-
-    public static VarHandle arrayVarHandle(Class<?> clazz) {
-        return MethodHandles.arrayElementVarHandle(clazz);
-    }
 }

@@ -2,8 +2,6 @@ package io.github.kusoroadeolu.cbs.utils;
 
 public class MiscUtils {
     public static final int MAX_POW2 = 1 << 30;
-
-    public static final int NCPU = Runtime.getRuntime().availableProcessors();
     public static final int SOFT_MAX_ARRAY_LENGTH = Integer.MAX_VALUE - 8;
 
 
