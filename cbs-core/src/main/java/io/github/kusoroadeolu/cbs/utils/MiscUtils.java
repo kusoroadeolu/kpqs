@@ -19,7 +19,6 @@ public class MiscUtils {
         }
         return 1 << (32 - Integer.numberOfLeadingZeros(value - 1));
     }
-
     public static int xorShift(int i) {
         int r = i;
         r ^= r << 13;
@@ -36,35 +35,4 @@ public class MiscUtils {
         return r;
     }
 
-
-
-    public static int offset(long index, long mask) {
-        return (int) (index & mask);
-    }
-
-    public static int newLength(int oldLength, int minGrowth, int prefGrowth) {
-        // preconditions not checked because of inlining
-        // assert oldLength >= 0
-        // assert minGrowth > 0
-
-        int prefLength = oldLength + Math.max(minGrowth, prefGrowth); // might overflow
-        if (0 < prefLength && prefLength <= SOFT_MAX_ARRAY_LENGTH) {
-            return prefLength;
-        } else {
-            // put code cold in a separate method
-            return hugeLength(oldLength, minGrowth);
-        }
-    }
-
-    private static int hugeLength(int oldLength, int minGrowth) {
-        int minLength = oldLength + minGrowth;
-        if (minLength < 0) { // overflow
-            throw new OutOfMemoryError(
-                    "Required array length " + oldLength + " + " + minGrowth + " is too large");
-        } else return Math.max(minLength, SOFT_MAX_ARRAY_LENGTH);
-    }
-
-    public static  <E>E[] allocateArray(int size) {
-        return (E[]) new Object[size];
-    }
 }
