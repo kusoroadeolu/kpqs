@@ -28,7 +28,7 @@ public class SteadyStateBench {
     private PQ<Integer> queue;
 
     final static int STEADY_STATE_SIZE = 132_000;
-    final static int RANGE = 10;
+    final static int RANGE = 1_000_000;
 
 
     @Setup(Level.Trial)
@@ -90,6 +90,6 @@ public class SteadyStateBench {
 ╭─────────────────────── io.github.kusoroadeolu.cbs.bench.SteadyStateBench.decKey ────────────────────────╮
 │  Type   Score Error   P00   P50   P90   P95   P99    P99.9  P99.99  P99.999  P99.9999  Max       Unit   │
 │  ------ ----- ------- ----- ----- ----- ----- ------ ------ ------- -------- --------- --------- -----  │
-│  SkipPQ 2.861 ± 0.067 0.300 1.400 3.700 7.800 29.184 63.552 400.350 6155.885 24046.628 30146.560 us/op  │
+│  SkipPQ 2.894 ± 0.062 0.300 1.400 3.400 7.496 30.880 69.376 519.864 7244.514 18698.312 27557.888 us/op  │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 * */
