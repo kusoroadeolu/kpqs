@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 
 public interface SortedList<E> {
-        void add(E e);
+        void offer(E e);
         Object[] toArray();
         E peekLast();
 
@@ -24,7 +24,7 @@ public interface SortedList<E> {
         }
 
 
-        public void add(E e) {
+        public void offer(E e) {
             int index = binarySearch(e);
             shiftRight(e, index);
             ++size;
@@ -40,23 +40,11 @@ public interface SortedList<E> {
             return buffer;
         }
 
-
-
-
-        //Returns added if buffer is not full, otherwise returns the previous "last" element
         void shiftRight(E elem, int index) {
             System.arraycopy(buffer, index, buffer, index + 1, size - index);
             buffer[index] = elem;
         }
 
-
-
-        /*
-         * v = cmp (e, i)
-         * v > 0 ? e is greater than i
-         * v < 0 ? e is less than i
-         * returns the raw long snapshot
-         * */
         int binarySearch(E elem) {
             int low = 0, high = size;
             int mid;
@@ -74,12 +62,5 @@ public interface SortedList<E> {
         public String toString() {
             return Arrays.toString(buffer);
         }
-    }
-
-    static void main() {
-        var buffer = new SortedBuffer<Integer>(20, Comparator.naturalOrder());
-        buffer.add(130);
-        buffer.add(48);
-        System.out.println(Arrays.toString(buffer.buffer));
     }
 }

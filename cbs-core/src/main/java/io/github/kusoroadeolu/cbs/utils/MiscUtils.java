@@ -1,14 +1,7 @@
 package io.github.kusoroadeolu.cbs.utils;
 
-import java.util.Comparator;
-
 public class MiscUtils {
     public static final int MAX_POW2 = 1 << 30;
-
-    public static final int NCPU = Runtime.getRuntime().availableProcessors();
-    public static final int SOFT_MAX_ARRAY_LENGTH = Integer.MAX_VALUE - 8;
-
-
 
     public static int roundToPowerOfTwo(final int value) {
         if (value > MAX_POW2) {
@@ -36,31 +29,6 @@ public class MiscUtils {
         r ^= r >>> 7;
         r ^= r << 17;;
         return r;
-    }
-
-
-
-
-    public static int newLength(int oldLength, int minGrowth, int prefGrowth) {
-        // preconditions not checked because of inlining
-        // assert oldLength >= 0
-        // assert minGrowth > 0
-
-        int prefLength = oldLength + Math.max(minGrowth, prefGrowth); // might overflow
-        if (0 < prefLength && prefLength <= SOFT_MAX_ARRAY_LENGTH) {
-            return prefLength;
-        } else {
-            // put code cold in a separate method
-            return hugeLength(oldLength, minGrowth);
-        }
-    }
-
-    private static int hugeLength(int oldLength, int minGrowth) {
-        int minLength = oldLength + minGrowth;
-        if (minLength < 0) { // overflow
-            throw new OutOfMemoryError(
-                    "Required array length " + oldLength + " + " + minGrowth + " is too large");
-        } else return Math.max(minLength, SOFT_MAX_ARRAY_LENGTH);
     }
 
     public static  <E>E[] allocateArray(int size) {

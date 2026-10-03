@@ -1,13 +1,8 @@
 package io.github.kusoroadeolu.cbs.bench;
 
-import io.github.kusoroadeolu.cbs.SortedList;
 import io.github.kusoroadeolu.cbs.SortedList.SortedBuffer;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
-import org.openjdk.jmh.profile.JavaFlightRecorderProfiler;
-import org.openjdk.jmh.runner.RunnerException;
-import org.openjdk.jmh.runner.options.Options;
-import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -61,7 +56,7 @@ public class SortingBench {
 
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     int copy(SortedBuffer<Integer> list) {
-        for (int i = 0; i < size; ++i) list.add(sample[i]);
+        for (int i = 0; i < size; ++i) list.offer(sample[i]);
         return 1;
     }
 

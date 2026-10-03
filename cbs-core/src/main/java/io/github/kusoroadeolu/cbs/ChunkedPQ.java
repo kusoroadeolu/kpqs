@@ -169,8 +169,8 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                     int capacity = CHUNK_CAPACITY + 1;
                     SortedList<E> list = new SortedBuffer<>(capacity, cmp);
                     var array = curr.array;
-                    for (int i = 0; i < CHUNK_CAPACITY; ++i) list.add((E) array[i]);
-                    list.add(e);
+                    for (int i = 0; i < CHUNK_CAPACITY; ++i) list.offer((E) array[i]);
+                    list.offer(e);
 
                     int half = capacity >>> 1;
                     int rem = capacity - half;
@@ -249,7 +249,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
                 readRemElementsInFChunk(curr, sortedList, frozenIndex);
                 readClaimedBitmapIndices(b, sortedList, bm);
 
-                if (!bm.isFrozen(index)) sortedList.add(e);
+                if (!bm.isFrozen(index)) sortedList.offer(e);
 
                 Object[] sorted = sortedList.toArray();
                 if (total > CHUNK_CAPACITY) {
@@ -283,11 +283,6 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
         tryRebuildIndex();
         return true;
-    }
-
-    static <T>void sortArray(Object[] array, Comparator<T> cmp) {
-        if (cmp == null) Arrays.sort(array);
-        else Arrays.sort((T[]) array, cmp);
     }
 
     Bitmap allocateBitmap(Chunk<E> chunk) {
@@ -455,13 +450,13 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
 
     void readElementsInChunk(Chunk<E> chunk, SortedList<E> list, int index) {
         for (int i = 0; i < index; ++i) {
-            list.add(chunk.lpArray(i));
+            list.offer(chunk.lpArray(i));
         }
     }
 
     void readRemElementsInFChunk(FirstChunk<E> chunk, SortedList<E> list, int frozenIndex) {
         for (int i = frozenIndex; i < chunk.capacity; ++i) {
-            list.add(chunk.lpArray(i));
+            list.offer(chunk.lpArray(i));
         }
     }
 
@@ -470,7 +465,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
         for (int i = 0; i < CHUNK_CAPACITY && bm.size() > 0; ++i) {
             if (bits[i] == Bitmap.CLAIMED) {
                 var value = buffer.lpArray(i);
-                list.add(value);
+                list.offer(value);
             }
         }
     }
