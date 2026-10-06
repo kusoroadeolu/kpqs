@@ -9,7 +9,7 @@ public class IndexedList<E> {
         Object[] elements;
         int capacity;
         int size;
-        static final int INITIAL_ENTRIES_SIZE = 32;
+        static final int INITIAL_ENTRIES_SIZE = 512;
 
 
     public IndexedList() {
@@ -19,7 +19,6 @@ public class IndexedList<E> {
 
         void add(E e) {
             int s = size;
-
 
             if (s == capacity) {
                 var elems = elements;
@@ -46,7 +45,7 @@ public class IndexedList<E> {
 
         private Object[] grow() {
             int oldCapacity = this.capacity;
-            int newCapacity = oldCapacity + INITIAL_ENTRIES_SIZE;
+            int newCapacity = oldCapacity + 32;
             capacity = newCapacity;
             return MiscUtils.allocateArray(newCapacity);
         }

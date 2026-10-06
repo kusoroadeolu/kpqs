@@ -114,22 +114,23 @@ public class MixedThrptBench {
 
 /*
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_50_50 ─╮
-│  Type      Role       Score  Error   Unit                     │
-│  --------- ---------- ------ ------- ------                   │
-│  ChunkedPQ fifty_add  1.177  ± 0.043 ops/us                   │
-│  ChunkedPQ fifty_poll 17.075 ± 2.630 ops/us                   │
-│  ChunkedPQ pollHit    1.177  ± 0.043 ops/us                   │
-│  ChunkedPQ pollMiss   15.901 ± 2.660 ops/us                   │
-│  ChunkedPQ aggregate  18.253 ± 2.602 ops/us                   │
+│  Type      Role       Score Error   Unit                      │
+│  --------- ---------- ----- ------- ------                    │
+│  ChunkedPQ fifty_add  1.050 ± 0.051 ops/us                    │
+│  ChunkedPQ fifty_poll 7.935 ± 0.754 ops/us                    │
+│  ChunkedPQ pollHit    1.050 ± 0.051 ops/us                    │
+│  ChunkedPQ pollMiss   6.886 ± 0.705 ops/us                    │
+│  ChunkedPQ aggregate  8.985 ± 0.803 ops/us                    │
 ╰───────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.MixedThrptBench.ratio_75_25 ─╮
 │  Type      Role             Score Error   Unit                │
 │  --------- ---------------- ----- ------- ------              │
-│  ChunkedPQ pollHit          1.492 ± 0.017 ops/us              │
-│  ChunkedPQ pollMiss         2.918 ± 0.420 ops/us              │
-│  ChunkedPQ seventy_five_add 1.492 ± 0.016 ops/us              │
-│  ChunkedPQ twenty_five_poll 4.410 ± 0.425 ops/us              │
-│  ChunkedPQ aggregate        5.902 ± 0.431 ops/us              │
+│  ChunkedPQ pollHit          0.729 ± 0.031 ops/us              │
+│  ChunkedPQ pollMiss         0.002 ± 0.001 ops/us              │
+│  ChunkedPQ seventy_five_add 0.781 ± 0.028 ops/us              │
+│  ChunkedPQ twenty_five_poll 0.729 ± 0.032 ops/us              │
+│  ChunkedPQ aggregate        1.510 ± 0.055 ops/us              │
 ╰───────────────────────────────────────────────────────────────╯
+
 * */

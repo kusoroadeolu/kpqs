@@ -95,25 +95,25 @@ public class InsertScalingJitterBench {
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.eight_full_insert ─╮
 │  Type      Score Error   Unit                                                       │
 │  --------- ----- ------- ------                                                     │
-│  ChunkedPQ 6.730 ± 0.231 ops/us                                                     │
+│  ChunkedPQ 6.443 ± 0.252 ops/us                                                     │
 ╰─────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.four_full_insert ─╮
 │  Type      Score Error   Unit                                                      │
 │  --------- ----- ------- ------                                                    │
-│  ChunkedPQ 3.722 ± 0.112 ops/us                                                    │
+│  ChunkedPQ 3.887 ± 0.161 ops/us                                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.six_full_insert ─╮
 │  Type      Score Error   Unit                                                     │
 │  --------- ----- ------- ------                                                   │
-│  ChunkedPQ 5.835 ± 0.135 ops/us                                                   │
+│  ChunkedPQ 5.811 ± 0.090 ops/us                                                   │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 
 ╭ io.github.kusoroadeolu.cbs.bench.insert.InsertScalingJitterBench.two_full_insert ─╮
 │  Type      Score Error   Unit                                                     │
 │  --------- ----- ------- ------                                                   │
-│  ChunkedPQ 2.324 ± 0.096 ops/us                                                   │
+│  ChunkedPQ 2.365 ± 0.045 ops/us                                                   │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 * */
 

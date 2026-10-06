@@ -15,7 +15,7 @@ import static io.github.kusoroadeolu.cbs.ChunkedPQ.ChunkState.*;
 
 
 class IndexLPad {
-    long l1, l2, l3, l4, l5, l6, l7, l8;
+    long l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15, l16;
 }
 
 @SuppressWarnings("unchecked")
@@ -58,7 +58,7 @@ class IndexFields<E> extends IndexLPad {
 
 
 class IndexRPad<E> extends IndexFields<E> {
-    long l1, l2, l3, l4, l5, l6, l7, l8;
+    long l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15, l16;
 }
 
 /*
@@ -330,7 +330,7 @@ public class ChunkedPQ<E> extends IndexRPad<E> implements PQ<E> {
             int state = Chunk.decodeState(status);
             int capacity = curr.capacity;
             if (index < capacity) {
-                if (state < FREEZING || index < Chunk.decodeFrozenIdx(index)) return curr.lvArray(index);
+                if (state < FREEZING || index < Chunk.decodeFrozenIdx(status)) return curr.lvArray(index);
             }
 
             if (state == FROZEN) continue;
