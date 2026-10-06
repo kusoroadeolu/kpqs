@@ -86,10 +86,3 @@ All benchmarks were run with JMH on 8 threads (unless noted), using random integ
 | ConcurrentMound | 5.404 | 0.2 | 3.4 | 1966.1 |
 | KQueue | 6.709 | 0.6 | 177.2 | 426.5 |
 | ChunkedPQ | 18.137 | 7.0 | 196.1 | 1002.5 |
-
-### Takeaways
-
-- The sharded queues (PIPQ, KQueue, MultiQueue) are roughly 6 to 10x faster on inserts than the single-structure queues.
-- MultiQueue has the best steady state latency, mean and tail, despite being the simplest design.
-- PIPQ and ConcurrentMound have excellent medians but occasional multi-millisecond stalls at P99.9.
-- SkipPQ has the slowest inserts but the fastest phase drain.
