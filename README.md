@@ -55,34 +55,34 @@ All benchmarks were run with JMH on 8 threads (unless noted), using random integ
 ### Insert scaling (ops/us, higher is better)
 
 | Queue | 2 threads | 4 threads | 6 threads | 8 threads |
-|---|---|---|---|---|
-| PIPQ | 27.839 | 33.940 | 37.805 | 38.302 |
-| KQueue | 25.247 | 31.981 | 35.115 | 35.687 |
-| MultiQueue | 21.826 | 28.376 | 32.076 | 34.516 |
-| ChunkedPQ | 2.903 | 4.295 | 4.902 | 5.732 |
-| ConcurrentMound | 3.340 | 4.803 | 5.361 | 5.410 |
-| SkipPQ | 1.536 | 2.414 | 3.038 | 3.601 |
+|---|-----------|-------|-----------|-----------|
+| PIPQ | 27.839    | 33.940 | 37.805    | 38.302    |
+| KQueue | 25.247    | 31.981 | 35.115    | 35.687    |
+| MultiQueue | 21.826    | 28.376 | 32.076    | 34.516    |
+| ConcurrentMound | 3.340     | 4.803 | 5.361     | 5.410     |
+| ChunkedPQ | 2.313     | 3.260 | 3.763     | 4.176     |
+| SkipPQ | 1.536     | 2.414 | 3.038     | 3.601     |
 
 ### Phase (burst of inserts, then full drain; 8 producers, 8 consumers; us, lower is better)
 
-| Queue | Time (us) |
-|---|---|
-| SkipPQ | 1764 ± 56 |
+| Queue | Time (us)  |
+|---|------------|
+| SkipPQ | 1764 ± 56  |
 | KQueue | 2082 ± 317 |
 | MultiQueue* | 2413 ± 368 |
+| ChunkedPQ | 3807 ± 434 |
 | PIPQ | 3787 ± 415 |
 | ConcurrentMound | 6921 ± 878 |
-| ChunkedPQ | 8109 ± 1867 |
 
 \* MultiQueue's `relaxedPoll()` can return null while elements remain in other segments, so consumers may stop before the queue is fully drained. Its time is likely understated.
 
 ### Steady state (8 threads, poll then re-insert, latency in us, lower is better)
 
-| Queue | Mean | P50 | P99 | P99.9 |
-|---|---|---|---|---|
-| MultiQueue | 0.896 | 0.7 | 1.8 | 10.1 |
-| SkipPQ | 2.894 | 1.4 | 30.9 | 69.4 |
-| PIPQ | 3.999 | 0.1 | 3.1 | 1871.9 |
-| ConcurrentMound | 5.404 | 0.2 | 3.4 | 1966.1 |
-| KQueue | 6.709 | 0.6 | 177.2 | 426.5 |
-| ChunkedPQ | 18.137 | 7.0 | 196.1 | 1002.5 |
+| Queue | Mean   | P50 | P99   | P99.9  |
+|---|--------|-----|-------|--------|
+| MultiQueue | 0.896  | 0.7 | 1.8   | 10.1   |
+| SkipPQ | 2.894  | 1.4 | 30.9  | 69.4   |
+| PIPQ | 3.999  | 0.1 | 3.1   | 1871.9 |
+| ConcurrentMound | 5.404  | 0.2 | 3.4   | 1966.1 |
+| KQueue | 6.709  | 0.6 | 177.2 | 426.5  |
+| ChunkedPQ | 14.349 | 2.2 | 208.1 | 377.6  |
